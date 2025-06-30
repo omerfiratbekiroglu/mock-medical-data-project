@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Vitals Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px #0001; padding: 24px; }
+        h1 { text-align: center; color: #2a3b4c; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; text-align: center; border-bottom: 1px solid #eee; }
+        th { background: #e3eaf2; color: #2a3b4c; }
+        tr.new-row { background: #d1ffd6; animation: highlight 1s; }
+        @keyframes highlight { from { background: #fff7b2; } to { background: #d1ffd6; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Live Vitals Dashboard</h1>
+        <table id="vitals-table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Patient ID</th>
+                    <th>Heart Rate</th>
+                    <th>Oxygen Level</th>
+                    <th>Temperature</th>
+                </tr>
+            </thead>
+            <tbody id="vitals-body">
+                <!-- Data rows will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+    <script>
+        const API_URL = 'http://localhost:8000/read?limit=10';
+        let lastTopId = null;
+
+        function formatTime(isoString) {
+            const d = new Date(isoString);
+            return d.toLocaleString();
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('vitals-body');
+            tbody.innerHTML = '';
+            data.forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                if (idx === 0 && row.id !== lastTopId) {
+                    tr.classList.add('new-row');
+                }
+                tr.innerHTML = `
+                    <td>${formatTime(row.time)}</td>
+                    <td>${row.patient_id}</td>
+                    <td>${row.heart_rate}</td>
+                    <td>${row.oxygen_level}</td>
+                    <td>${row.temp}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function fetchVitals() {
+            try {
+                const res = await fetch(API_URL);
+                const data = await res.json();
+                renderTable(data); // Always rerender
+            } catch (e) {
+                console.error('Error fetching vitals:', e);
+            }
+        }
+
+        // Initial fetch
+        fetchVitals();
+        // Poll every 1 second
+        setInterval(fetchVitals, 1000);
+    </script>
+</body>
+</html>
