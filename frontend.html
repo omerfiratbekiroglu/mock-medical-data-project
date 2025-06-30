@@ -6,18 +6,34 @@
     <title>Live Vitals Dashboard</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
-        .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px #0001; padding: 24px; }
+        .container { max-width: 1200px; margin: 40px auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px #0001; padding: 24px; }
         h1 { text-align: center; color: #2a3b4c; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 10px; text-align: center; border-bottom: 1px solid #eee; }
         th { background: #e3eaf2; color: #2a3b4c; }
         tr.new-row { background: #d1ffd6; animation: highlight 1s; }
         @keyframes highlight { from { background: #fff7b2; } to { background: #d1ffd6; } }
+        .charts { margin-top: 40px; display: flex; gap: 20px; justify-content: space-between; }
+        .chart-container { flex: 1 1 0; min-width: 0; margin-bottom: 0; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px #0001; padding: 16px; max-width: 370px; }
+        .chart-container canvas { width: 100% !important; height: 200px !important; }
     </style>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>Live Vitals Dashboard</h1>
+        <div class="charts">
+            <div class="chart-container">
+                <canvas id="heartRateChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="oxygenLevelChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="tempChart"></canvas>
+            </div>
+        </div>
         <table id="vitals-table">
             <thead>
                 <tr>
@@ -37,9 +53,77 @@
         const API_URL = 'http://localhost:8000/read?limit=10';
         let lastTopId = null;
 
+        // Chart.js setup
+        const MAX_POINTS = 30;
+        let heartRateData = [];
+        let oxygenLevelData = [];
+        let tempData = [];
+        let timeLabels = [];
+
+        const heartRateChart = new Chart(document.getElementById('heartRateChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'Heart Rate',
+                    data: heartRateData,
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231,76,60,0.1)',
+                    fill: true,
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } },
+                animation: false
+            }
+        });
+        const oxygenLevelChart = new Chart(document.getElementById('oxygenLevelChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'Oxygen Level',
+                    data: oxygenLevelData,
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52,152,219,0.1)',
+                    fill: true,
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } },
+                animation: false
+            }
+        });
+        const tempChart = new Chart(document.getElementById('tempChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'Temperature',
+                    data: tempData,
+                    borderColor: '#f39c12',
+                    backgroundColor: 'rgba(243,156,18,0.1)',
+                    fill: true,
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } },
+                animation: false
+            }
+        });
+
         function formatTime(isoString) {
             const d = new Date(isoString);
-            return d.toLocaleString();
+            return d.toLocaleTimeString();
         }
 
         function renderTable(data) {
@@ -61,11 +145,37 @@
             });
         }
 
+        function updateCharts(data) {
+            // Assume data is sorted newest first
+            data = data.slice().reverse();
+            timeLabels.length = 0;
+            heartRateData.length = 0;
+            oxygenLevelData.length = 0;
+            tempData.length = 0;
+            data.forEach(row => {
+                timeLabels.push(formatTime(row.time));
+                heartRateData.push(row.heart_rate);
+                oxygenLevelData.push(row.oxygen_level);
+                tempData.push(row.temp);
+            });
+            // Keep only last MAX_POINTS
+            if (timeLabels.length > MAX_POINTS) {
+                timeLabels.splice(0, timeLabels.length - MAX_POINTS);
+                heartRateData.splice(0, heartRateData.length - MAX_POINTS);
+                oxygenLevelData.splice(0, oxygenLevelData.length - MAX_POINTS);
+                tempData.splice(0, tempData.length - MAX_POINTS);
+            }
+            heartRateChart.update();
+            oxygenLevelChart.update();
+            tempChart.update();
+        }
+
         async function fetchVitals() {
             try {
                 const res = await fetch(API_URL);
                 const data = await res.json();
                 renderTable(data); // Always rerender
+                updateCharts(data);
             } catch (e) {
                 console.error('Error fetching vitals:', e);
             }
