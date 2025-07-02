@@ -1,8 +1,9 @@
-import requests
+import aiohttp
+import asyncio
 import random
 import time
 
-API_URL = "http://localhost:8000/write"
+API_URL = "http://localhost:8000/write"  # or "http://api:8000/write" if in Docker
 
 def generate_random_vitals():
     return {
@@ -12,22 +13,27 @@ def generate_random_vitals():
         "temp": round(random.uniform(36.0, 37.5), 1)
     }
 
-period = 1.0  # seconds
+async def send_vitals(session, data):
+    try:
+        async with session.post(API_URL, json=data, timeout=1) as resp:
+            await resp.text()  # optional
+    except Exception as e:
+        print("Send error:", e)
 
-try:
-    while True:
-        start_time = time.time()
+async def run_generator(period=1.0):
+    async with aiohttp.ClientSession() as session:
+        while True:
+            start = time.time()
+            vitals = generate_random_vitals()
+            await send_vitals(session, vitals)
+            elapsed = time.time() - start
+            sleep_time = max(0, period - elapsed)
+            print(f"Sent: {vitals}")
+            print(f"Iteration took {elapsed:.2f} seconds")
+            await asyncio.sleep(sleep_time)
 
-        vitals = generate_random_vitals()
-        response = requests.post(API_URL, json=vitals, timeout=2)
-        print(f"Sent: {vitals} | Status: {response.status_code}")
-
-        elapsed = time.time() - start_time
-        print(f"Iteration took {elapsed:.2f} seconds")
-
-        sleep_time = max(0, period - elapsed)
-        print(f"Sleeping for {sleep_time:.2f} seconds\n")
-        time.sleep(sleep_time)
-        
-except KeyboardInterrupt:
-    print("\nGenerator stopped by user.")
+if __name__ == "__main__":
+    try:
+        asyncio.run(run_generator(period=1.0))
+    except KeyboardInterrupt:
+        print("Stopped generator.")
