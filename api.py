@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket
 from pydantic import BaseModel
 from typing import Optional, List
 import psycopg2
@@ -6,12 +6,26 @@ import psycopg2.extras
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
-from dotenv import load_dotenv
-import os
-import psycopg2
+import asyncio
+import json
+from datetime import datetime
 
-load_dotenv()  # Load from .env
+# Load .env
+load_dotenv()
 
+# FastAPI app
+app = FastAPI()
+
+# Enable CORS for frontend.html
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# DB Connection
 def get_db_connection():
     return psycopg2.connect(
         host=os.getenv("DB_HOST"),
@@ -21,18 +35,6 @@ def get_db_connection():
         password=os.getenv("DB_PASSWORD")
     )
 
-# FastAPI app
-app = FastAPI()
-
-# Enable CORS for all origins (for development)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Data model
 class VitalsIn(BaseModel):
     patient_id: str
@@ -40,9 +42,32 @@ class VitalsIn(BaseModel):
     oxygen_level: int
     temp: float
 
-# Endpoint: Write new vitals
+# WebSocket clients
+connected_clients: List[WebSocket] = []
+
+# Broadcast function
+async def broadcast_vitals(vitals: VitalsIn):
+    now = datetime.utcnow().isoformat()
+    payload = {
+        "patient_id": vitals.patient_id,
+        "heart_rate": vitals.heart_rate,
+        "oxygen_level": vitals.oxygen_level,
+        "temp": vitals.temp,
+        "time": now
+    }
+    message = json.dumps(payload)
+    disconnected = []
+    for ws in connected_clients:
+        try:
+            await ws.send_text(message)
+        except:
+            disconnected.append(ws)
+    for ws in disconnected:
+        connected_clients.remove(ws)
+
+# Write vitals + broadcast
 @app.post("/write")
-def write_vitals(vitals: VitalsIn):
+async def write_vitals(vitals: VitalsIn):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -51,15 +76,15 @@ def write_vitals(vitals: VitalsIn):
             VALUES (%s, NOW(), %s, %s, %s)
         """, (vitals.patient_id, vitals.heart_rate, vitals.oxygen_level, vitals.temp))
         conn.commit()
-        return {"message": "Vitals inserted successfully"}
+        asyncio.create_task(broadcast_vitals(vitals))
+        return {"message": "Inserted and broadcasted"}
     except Exception as e:
-        print(f"Error inserting vitals: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cur.close()
         conn.close()
 
-# Endpoint: Read latest vitals (optionally filter)
+# Read vitals
 @app.get("/read")
 def read_vitals(limit: int = 10, patient_id: Optional[str] = None):
     conn = get_db_connection()
@@ -72,13 +97,25 @@ def read_vitals(limit: int = 10, patient_id: Optional[str] = None):
             """, (patient_id, limit))
         else:
             cur.execute("""
-                SELECT * FROM vitals
-                ORDER BY time DESC LIMIT %s
+                SELECT * FROM vitals ORDER BY time DESC LIMIT %s
             """, (limit,))
-        results = cur.fetchall()
-        return results
+        return cur.fetchall()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cur.close()
         conn.close()
+
+# WebSocket endpoint
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    connected_clients.append(websocket)
+    try:
+        while True:
+            await asyncio.sleep(10)
+    except:
+        pass
+    finally:
+        if websocket in connected_clients:
+            connected_clients.remove(websocket)

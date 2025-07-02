@@ -2,7 +2,7 @@ import requests
 import random
 import time
 
-API_URL = "http://api:8000/write"
+API_URL = "http://localhost:8000/write"
 
 def generate_random_vitals():
     return {

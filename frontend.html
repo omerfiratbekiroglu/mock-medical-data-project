@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Live Vitals Dashboard</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f6fa; margin: 0; padding: 0; }
@@ -45,146 +45,100 @@
                 </tr>
             </thead>
             <tbody id="vitals-body">
-                <!-- Data rows will be inserted here -->
+                <!-- Data rows inserted here -->
             </tbody>
         </table>
     </div>
     <script>
-        const API_URL = 'http://localhost:8000/read?limit=10';
-        let lastTopId = null;
-
-        // Chart.js setup
         const MAX_POINTS = 30;
-        let heartRateData = [];
-        let oxygenLevelData = [];
-        let tempData = [];
-        let timeLabels = [];
-
-        const heartRateChart = new Chart(document.getElementById('heartRateChart').getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: timeLabels,
-                datasets: [{
-                    label: 'Heart Rate',
-                    data: heartRateData,
-                    borderColor: '#e74c3c',
-                    backgroundColor: 'rgba(231,76,60,0.1)',
-                    fill: true,
-                    tension: 0.3,
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } },
-                animation: false
-            }
-        });
-        const oxygenLevelChart = new Chart(document.getElementById('oxygenLevelChart').getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: timeLabels,
-                datasets: [{
-                    label: 'Oxygen Level',
-                    data: oxygenLevelData,
-                    borderColor: '#3498db',
-                    backgroundColor: 'rgba(52,152,219,0.1)',
-                    fill: true,
-                    tension: 0.3,
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } },
-                animation: false
-            }
-        });
-        const tempChart = new Chart(document.getElementById('tempChart').getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: timeLabels,
-                datasets: [{
-                    label: 'Temperature',
-                    data: tempData,
-                    borderColor: '#f39c12',
-                    backgroundColor: 'rgba(243,156,18,0.1)',
-                    fill: true,
-                    tension: 0.3,
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } },
-                animation: false
-            }
-        });
+        let heartRateData = [], oxygenLevelData = [], tempData = [], timeLabels = [];
+        const tbody = document.getElementById('vitals-body');
 
         function formatTime(isoString) {
             const d = new Date(isoString);
             return d.toLocaleTimeString();
         }
 
-        function renderTable(data) {
-            const tbody = document.getElementById('vitals-body');
-            tbody.innerHTML = '';
-            data.forEach((row, idx) => {
-                const tr = document.createElement('tr');
-                if (idx === 0 && row.id !== lastTopId) {
-                    tr.classList.add('new-row');
-                }
-                tr.innerHTML = `
-                    <td>${formatTime(row.time)}</td>
-                    <td>${row.patient_id}</td>
-                    <td>${row.heart_rate}</td>
-                    <td>${row.oxygen_level}</td>
-                    <td>${row.temp}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function updateCharts(data) {
-            // Assume data is sorted newest first
-            data = data.slice().reverse();
-            timeLabels.length = 0;
-            heartRateData.length = 0;
-            oxygenLevelData.length = 0;
-            tempData.length = 0;
-            data.forEach(row => {
-                timeLabels.push(formatTime(row.time));
-                heartRateData.push(row.heart_rate);
-                oxygenLevelData.push(row.oxygen_level);
-                tempData.push(row.temp);
-            });
-            // Keep only last MAX_POINTS
-            if (timeLabels.length > MAX_POINTS) {
-                timeLabels.splice(0, timeLabels.length - MAX_POINTS);
-                heartRateData.splice(0, heartRateData.length - MAX_POINTS);
-                oxygenLevelData.splice(0, oxygenLevelData.length - MAX_POINTS);
-                tempData.splice(0, tempData.length - MAX_POINTS);
+        function updateChartsWithNew(row) {
+            if (timeLabels.length >= MAX_POINTS) {
+                timeLabels.shift();
+                heartRateData.shift();
+                oxygenLevelData.shift();
+                tempData.shift();
             }
+            timeLabels.push(formatTime(row.time));
+            heartRateData.push(row.heart_rate);
+            oxygenLevelData.push(row.oxygen_level);
+            tempData.push(row.temp);
             heartRateChart.update();
             oxygenLevelChart.update();
             tempChart.update();
         }
 
-        async function fetchVitals() {
-            try {
-                const res = await fetch(API_URL);
-                const data = await res.json();
-                renderTable(data); // Always rerender
-                updateCharts(data);
-            } catch (e) {
-                console.error('Error fetching vitals:', e);
+        function prependRow(row) {
+            const tr = document.createElement('tr');
+            tr.classList.add('new-row');
+            tr.innerHTML = `
+                <td>${formatTime(row.time)}</td>
+                <td>${row.patient_id}</td>
+                <td>${row.heart_rate}</td>
+                <td>${row.oxygen_level}</td>
+                <td>${row.temp}</td>
+            `;
+            tbody.insertBefore(tr, tbody.firstChild);
+            // Keep only 10 rows in table
+            while (tbody.children.length > 10) {
+                tbody.removeChild(tbody.lastChild);
             }
         }
 
-        // Initial fetch
-        fetchVitals();
-        // Poll every 1 second
-        setInterval(fetchVitals, 500);
+        // Chart.js setup
+        const heartRateChart = new Chart(document.getElementById('heartRateChart').getContext('2d'), {
+            type: 'line',
+            data: { labels: timeLabels, datasets: [{ label: 'Heart Rate', data: heartRateData, borderColor: '#e74c3c', backgroundColor: 'rgba(231,76,60,0.1)', fill: true, tension: 0.3 }] },
+            options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } }, animation: false }
+        });
+        const oxygenLevelChart = new Chart(document.getElementById('oxygenLevelChart').getContext('2d'), {
+            type: 'line',
+            data: { labels: timeLabels, datasets: [{ label: 'Oxygen Level', data: oxygenLevelData, borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,0.1)', fill: true, tension: 0.3 }] },
+            options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } }, animation: false }
+        });
+        const tempChart = new Chart(document.getElementById('tempChart').getContext('2d'), {
+            type: 'line',
+            data: { labels: timeLabels, datasets: [{ label: 'Temperature', data: tempData, borderColor: '#f39c12', backgroundColor: 'rgba(243,156,18,0.1)', fill: true, tension: 0.3 }] },
+            options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } }, animation: false }
+        });
+
+        // Initial load of last 10 records
+        async function initialLoad() {
+            try {
+                const res = await fetch('http://localhost:8000/read?limit=10');
+                const data = await res.json();
+                data.reverse().forEach(row => {
+                    prependRow(row);
+                    updateChartsWithNew(row);
+                });
+            } catch (e) {
+                console.error("Initial data load failed", e);
+            }
+        }
+
+        initialLoad();
+
+        // WebSocket connection for live updates
+        const socket = new WebSocket("ws://localhost:8000/ws");
+
+        socket.onopen = () => console.log("WebSocket connected");
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            prependRow(data);
+            updateChartsWithNew(data);
+        };
+
+        socket.onerror = (error) => console.error("WebSocket error:", error);
+
+        socket.onclose = () => console.warn("WebSocket connection closed");
     </script>
 </body>
 </html>
