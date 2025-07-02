@@ -12,12 +12,22 @@ def generate_random_vitals():
         "temp": round(random.uniform(36.0, 37.5), 1)
     }
 
+period = 1.0  # seconds
+
 try:
     while True:
-        vitals = generate_random_vitals()
-        response = requests.post(API_URL, json=vitals)
-        print(f"Sent: {vitals} | Status: {response.status_code}")
-        time.sleep(1)
+        start_time = time.time()
 
+        vitals = generate_random_vitals()
+        response = requests.post(API_URL, json=vitals, timeout=2)
+        print(f"Sent: {vitals} | Status: {response.status_code}")
+
+        elapsed = time.time() - start_time
+        print(f"Iteration took {elapsed:.2f} seconds")
+
+        sleep_time = max(0, period - elapsed)
+        print(f"Sleeping for {sleep_time:.2f} seconds\n")
+        time.sleep(sleep_time)
+        
 except KeyboardInterrupt:
-    print("Stopped generator.")
+    print("\nGenerator stopped by user.")
