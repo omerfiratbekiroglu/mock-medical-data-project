@@ -19,6 +19,8 @@
     </style>
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- CryptoJS CDN for AES decryption -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -92,6 +94,39 @@
             }
         }
 
+        // AES-GCM decryption function using Web Crypto API
+        async function decryptAESGCM(base64Payload, keyStr) {
+            // Decode base64 and parse JSON
+            const payloadStr = atob(base64Payload);
+            const payload = JSON.parse(payloadStr);
+            const nonce = Uint8Array.from(atob(payload.nonce), c => c.charCodeAt(0));
+            const tag = Uint8Array.from(atob(payload.tag), c => c.charCodeAt(0));
+            const ciphertext = Uint8Array.from(atob(payload.ciphertext), c => c.charCodeAt(0));
+            // Concatenate ciphertext and tag (Web Crypto expects them together)
+            const ctAndTag = new Uint8Array(ciphertext.length + tag.length);
+            ctAndTag.set(ciphertext);
+            ctAndTag.set(tag, ciphertext.length);
+            // Import key
+            const key = await window.crypto.subtle.importKey(
+                'raw',
+                new TextEncoder().encode(keyStr),
+                { name: 'AES-GCM' },
+                false,
+                ['decrypt']
+            );
+            // Decrypt
+            const decrypted = await window.crypto.subtle.decrypt(
+                {
+                    name: 'AES-GCM',
+                    iv: nonce,
+                    tagLength: 128
+                },
+                key,
+                ctAndTag
+            );
+            return new TextDecoder().decode(decrypted);
+        }
+
         // Chart.js setup
         const heartRateChart = new Chart(document.getElementById('heartRateChart').getContext('2d'), {
             type: 'line',
@@ -109,15 +144,19 @@
             options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } }, animation: false }
         });
 
-        // Initial load of last 10 records
+        // Initial load of last 10 records (from encrypted endpoint, GCM)
         async function initialLoad() {
+            const AES_KEY = "thisisaverysecretkey1234567890ab";
             try {
-                const res = await fetch('http://localhost:8000/read?limit=10');
+                const res = await fetch('http://localhost:8000/read_encrypted?limit=10');
                 const data = await res.json();
-                data.reverse().forEach(row => {
-                    prependRow(row);
-                    updateChartsWithNew(row);
-                });
+                for (const row of data.reverse()) {
+                    const decrypted = await decryptAESGCM(row.encrypted_data, AES_KEY);
+                    const vitals = JSON.parse(decrypted);
+                    vitals.time = row.time;
+                    prependRow(vitals);
+                    updateChartsWithNew(vitals);
+                }
             } catch (e) {
                 console.error("Initial data load failed", e);
             }
@@ -125,20 +164,30 @@
 
         initialLoad();
 
-        // WebSocket connection for live updates
-        const socket = new WebSocket("ws://localhost:8000/ws");
-
-        socket.onopen = () => console.log("WebSocket connected");
-
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            prependRow(data);
-            updateChartsWithNew(data);
-        };
-
-        socket.onerror = (error) => console.error("WebSocket error:", error);
-
-        socket.onclose = () => console.warn("WebSocket connection closed");
+        // Polling for new data every 2 seconds
+        let lastTime = null;
+        async function pollNewData() {
+            const AES_KEY = "thisisaverysecretkey1234567890ab";
+            try {
+                const res = await fetch('http://localhost:8000/read_encrypted?limit=1');
+                const data = await res.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    const row = data[0];
+                    if (row.time !== lastTime) {
+                        lastTime = row.time;
+                        const decrypted = await decryptAESGCM(row.encrypted_data, AES_KEY);
+                        const vitals = JSON.parse(decrypted);
+                        vitals.time = row.time;
+                        prependRow(vitals);
+                        updateChartsWithNew(vitals);
+                    }
+                }
+            } catch (e) {
+                console.error("Polling for new data failed", e);
+            }
+            setTimeout(pollNewData, 1000); // poll every 2 seconds
+        }
+        pollNewData();
     </script>
 </body>
 </html>

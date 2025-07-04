@@ -2,8 +2,10 @@ import aiohttp
 import asyncio
 import random
 import time
+import json
+from crypto_utils import encrypt_data
 
-API_URL = "http://localhost:8000/write"  # or "http://api:8000/write" if in Docker
+API_URL = "http://localhost:8000/write_encrypted"  # or "http://api:8000/write_encrypted" if in Docker
 
 def generate_random_vitals():
     return {
@@ -25,10 +27,13 @@ async def run_generator(period=1.0):
         while True:
             start = time.time()
             vitals = generate_random_vitals()
-            await send_vitals(session, vitals)
+            # Encrypt the vitals as JSON string
+            encrypted = encrypt_data(json.dumps(vitals))
+            await send_vitals(session, {"encrypted_data": encrypted})
             elapsed = time.time() - start
             sleep_time = max(0, period - elapsed)
-            print(f"Sent: {vitals}")
+            print(f"Generated vitals: {vitals}")
+            #print(f"Sent (encrypted): {encrypted}")
             print(f"Iteration took {elapsed:.2f} seconds")
             await asyncio.sleep(sleep_time)
 

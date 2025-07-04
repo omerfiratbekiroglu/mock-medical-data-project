@@ -1,12 +1,9 @@
-from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
-import asyncio
-import json
-from datetime import datetime
 import time
 from databases import Database
 
@@ -44,28 +41,8 @@ class VitalsIn(BaseModel):
     oxygen_level: int
     temp: float
 
-# WebSocket clients
-connected_clients: List[WebSocket] = []
-
-# Broadcast function
-async def broadcast_vitals(vitals: VitalsIn):
-    now = datetime.utcnow().isoformat()
-    payload = {
-        "patient_id": vitals.patient_id,
-        "heart_rate": vitals.heart_rate,
-        "oxygen_level": vitals.oxygen_level,
-        "temp": vitals.temp,
-        "time": now
-    }
-    message = json.dumps(payload)
-    disconnected = []
-    for ws in connected_clients:
-        try:
-            await ws.send_text(message)
-        except:
-            disconnected.append(ws)
-    for ws in disconnected:
-        connected_clients.remove(ws)
+class EncryptedDataIn(BaseModel):
+    encrypted_data: str
 
 # Write vitals + broadcast
 @app.post("/write")
@@ -85,8 +62,7 @@ async def write_vitals(vitals: VitalsIn):
         await database.execute(query=query, values=values)
         elapsed = time.time() - start
         print(f"DB insert took {elapsed:.3f} seconds")
-        asyncio.create_task(broadcast_vitals(vitals))
-        return {"message": "Inserted and broadcasted"}
+        return {"message": "Inserted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -109,16 +85,35 @@ async def read_vitals(limit: int = 10, patient_id: Optional[str] = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    connected_clients.append(websocket)
+# Write encrypted data
+@app.post("/write_encrypted")
+async def write_encrypted(data: EncryptedDataIn):
+    query = """
+        INSERT INTO encrypted_vitals (encrypted_data, time)
+        VALUES (:encrypted_data, NOW())
+        RETURNING time
+    """
+    values = {"encrypted_data": data.encrypted_data}
     try:
-        while True:
-            await asyncio.sleep(10)
-    except:
-        pass
-    finally:
-        if websocket in connected_clients:
-            connected_clients.remove(websocket)
+        result = await database.fetch_one(query=query, values=values)
+        return {"message": "Encrypted data inserted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Read encrypted data
+@app.get("/read_encrypted")
+async def read_encrypted(limit: int = 10):
+    query = """
+        SELECT encrypted_data, time FROM encrypted_vitals
+        ORDER BY time DESC
+        LIMIT :limit
+    """
+    values = {"limit": limit}
+    try:
+        result = await database.fetch_all(query=query, values=values)
+        return result
+    except Exception as e:
+        import traceback
+        print("/read_encrypted error:", traceback.format_exc())
+        # Return error details for debugging
+        return {"error": str(e), "trace": traceback.format_exc()}
