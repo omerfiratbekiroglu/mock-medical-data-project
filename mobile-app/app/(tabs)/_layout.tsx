@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -26,20 +27,35 @@ export default function TabLayout() {
           default: {},
         }),
       }}>
-      <Tabs.Screen
-        name="index"
+       <Tabs.Screen
+        name="(tabs)/logs"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Logs',
+          tabBarIcon: ({ color, size }) => <Ionicons name="list" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="(tabs)/heartrate"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Heart Rate',
+          tabBarIcon: ({ color, size }) => <Ionicons name="heart" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="(tabs)/oxygen"
+        options={{
+          title: 'Oxygen',
+          tabBarIcon: ({ color, size }) => <Ionicons name="water" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="(tabs)/temperature"
+        options={{
+          title: 'Temperature',
+          tabBarIcon: ({ color, size }) => <Ionicons name="thermometer" color={color} size={size} />,
         }}
       />
     </Tabs>
+ 
   );
 }
