@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import os
 import time
 from databases import Database
+from crypto_utils import decrypt_data
 
 # Load .env
 load_dotenv()
@@ -117,3 +118,11 @@ async def read_encrypted(limit: int = 10):
         print("/read_encrypted error:", traceback.format_exc())
         # Return error details for debugging
         return {"error": str(e), "trace": traceback.format_exc()}
+
+@app.post("/decrypt")
+async def decrypt_endpoint(data: EncryptedDataIn):
+    try:
+        decrypted = decrypt_data(data.encrypted_data)
+        return {"decrypted_data": decrypted}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Decryption failed: {str(e)}")
