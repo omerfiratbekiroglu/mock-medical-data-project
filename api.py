@@ -43,6 +43,9 @@ class VitalsIn(BaseModel):
     temp: float
 
 class EncryptedDataIn(BaseModel):
+    uuid: str
+    seq_no: int
+    patient_id: str
     encrypted_data: str
 
 # Write vitals + broadcast
@@ -87,28 +90,56 @@ async def read_vitals(limit: int = 10, patient_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 # Write encrypted data
-@app.post("/write_encrypted")
+
+""" @app.post("/write_encrypted")
 async def write_encrypted(data: EncryptedDataIn):
-    query = """
+    query = 
         INSERT INTO encrypted_vitals (encrypted_data, time)
         VALUES (:encrypted_data, NOW())
         RETURNING time
-    """
+    
     values = {"encrypted_data": data.encrypted_data}
     try:
         result = await database.fetch_one(query=query, values=values)
         return {"message": "Encrypted data inserted"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) """
 
-# Read encrypted data
-@app.get("/read_encrypted")
-async def read_encrypted(limit: int = 10):
+@app.post("/write_encrypted")
+async def write_encrypted(data: EncryptedDataIn):
     query = """
+        INSERT INTO encrypted_vitals (uuid, seq_no, patient_id, encrypted_data, time)
+        VALUES (:uuid, :seq_no, :patient_id, :encrypted_data, NOW())
+        RETURNING time
+    """
+    values = {
+        "uuid": data.uuid,
+        "seq_no": data.seq_no,
+        "patient_id": data.patient_id,
+        "encrypted_data": data.encrypted_data
+    }
+
+    try:
+        result = await database.fetch_one(query=query, values=values)
+        return {
+            "message": "Encrypted data inserted",
+            "uuid": data.uuid,
+            "seq_no": data.seq_no,
+            "time": result["time"] if result else None
+        }
+    except Exception as e:
+        if "duplicate key" in str(e).lower():
+            return {"message": "Duplicate packet", "uuid": data.uuid}
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# Read encrypted data
+""" @app.get("/read_encrypted")
+async def read_encrypted(limit: int = 10):
+    query = 
         SELECT encrypted_data, time FROM encrypted_vitals
         ORDER BY time DESC
         LIMIT :limit
-    """
+    
     values = {"limit": limit}
     try:
         result = await database.fetch_all(query=query, values=values)
@@ -121,6 +152,34 @@ async def read_encrypted(limit: int = 10):
 
 @app.post("/decrypt")
 async def decrypt_endpoint(data: EncryptedDataIn):
+    try:
+        decrypted = decrypt_data(data.encrypted_data)
+        return {"decrypted_data": decrypted}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Decryption failed: {str(e)}") """
+
+@app.get("/read_encrypted")
+async def read_encrypted(limit: int = 10):
+    query = """
+        SELECT uuid, seq_no, patient_id, encrypted_data, time
+        FROM encrypted_vitals
+        ORDER BY time DESC
+        LIMIT :limit
+    """
+    values = {"limit": limit}
+    try:
+        result = await database.fetch_all(query=query, values=values)
+        return result
+    except Exception as e:
+        import traceback
+        print("/read_encrypted error:", traceback.format_exc())
+        return {"error": str(e), "trace": traceback.format_exc()}
+
+class EncryptedDataOnly(BaseModel):
+    encrypted_data: str
+
+@app.post("/decrypt")
+async def decrypt_endpoint(data: EncryptedDataOnly):
     try:
         decrypted = decrypt_data(data.encrypted_data)
         return {"decrypted_data": decrypted}
