@@ -34,7 +34,10 @@ export default function LogsScreen() {
             });
             const decryptData = await decryptRes.json();
             if (decryptData.decrypted_data) {
-              const vitals = JSON.parse(decryptData.decrypted_data);
+              const byteLength = new TextEncoder().encode(decryptData.decrypted_data).length;
+              console.log(`Decrypted data length: ${byteLength} bytes`);
+              const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
+              const vitals = JSON.parse(cleaned);
               vitals.time = row.time;
               decryptedRows.push(vitals);
             } else {
@@ -58,7 +61,6 @@ export default function LogsScreen() {
     return () => { isMounted = false; };
   }, []);
 
-  // Poll for new data every 2 seconds
   useEffect(() => {
     let isMounted = true;
     const poll = async () => {
@@ -77,7 +79,10 @@ export default function LogsScreen() {
             });
             const decryptData = await decryptRes.json();
             if (decryptData.decrypted_data) {
-              const vitals = JSON.parse(decryptData.decrypted_data);
+              const byteLength = new TextEncoder().encode(decryptData.decrypted_data).length;
+              console.log(`Decrypted data length: ${byteLength} bytes`);
+              const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
+              const vitals = JSON.parse(cleaned);
               vitals.time = row.time;
               if (isMounted) {
                 setLogs(prev => [vitals, ...prev].slice(0, 10));

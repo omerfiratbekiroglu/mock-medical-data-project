@@ -7,10 +7,9 @@ import json
 KEY = os.environ.get('AES_KEY', 'thisisaverysecretkey1234567890ab').encode('utf-8')
 NONCE = os.environ.get('AES_NONCE', 'thisisgcmnonce!').encode('utf-8')  # 12 bytes for GCM
 
-def encrypt_data(data: str) -> str:
+def encrypt_data(data_bytes: bytes) -> str:
     cipher = AES.new(KEY, AES.MODE_GCM, nonce=NONCE)
-    ct_bytes, tag = cipher.encrypt_and_digest(data.encode('utf-8'))
-    # Return base64 of nonce, tag, and ciphertext for frontend
+    ct_bytes, tag = cipher.encrypt_and_digest(data_bytes)
     payload = {
         'nonce': base64.b64encode(NONCE).decode('utf-8'),
         'tag': base64.b64encode(tag).decode('utf-8'),
