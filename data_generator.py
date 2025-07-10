@@ -9,10 +9,25 @@ import datetime
 from crypto_utils import encrypt_data
 
 API_URL = "http://localhost:8000/write_encrypted"
+SEQ_INIT_URL = "http://localhost:8000/get_last_seq_nos"
 RETRY_DIR = "retry_queue"
 os.makedirs(RETRY_DIR, exist_ok=True)
 
 seq_counters = {}
+
+async def initialize_seq_counters():
+    global seq_counters
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(SEQ_INIT_URL) as resp:
+                if resp.status != 200:
+                    raise Exception(f"Failed to get seq counters: {resp.status}")
+                data = await resp.json()
+                for pid, seq in data.items():
+                    seq_counters[pid] = seq
+                print("Initialized seq_counters via API:", seq_counters)
+    except Exception as e:
+        print(f"[!] Could not initialize seq counters via API: {e}")
 
 def generate_random_vitals(patient_id="patient1"):
     global seq_counters
@@ -79,6 +94,7 @@ async def run_generator(period=1.0):
 
 if __name__ == "__main__":
     try:
+        asyncio.run(initialize_seq_counters())
         asyncio.run(run_generator(period=1.0))
     except KeyboardInterrupt:
         print("Stopped generator.")

@@ -173,3 +173,16 @@ async def fetch_by_seq_range(patient_id: str, start: int, end: int):
     """
     return await database.fetch_all(query=query, values={"pid": patient_id, "start": start, "end": end})
 
+@app.get("/get_last_seq_nos")
+async def get_last_seq_nos():
+    query = """
+        SELECT patient_id, MAX(seq_no) AS last_seq
+        FROM encrypted_vitals
+        GROUP BY patient_id
+    """
+    try:
+        rows = await database.fetch_all(query)
+        result = {row["patient_id"]: row["last_seq"] or 0 for row in rows}
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
