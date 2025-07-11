@@ -20,14 +20,22 @@ export default function FallbackLogsScreen() {
   const [loading, setLoading] = useState(true);
   const [lastSeqNo, setLastSeqNo] = useState<number>(0);
 
-  const insertWithGapDetection = (newEntries: any[], existing: any[]) => {
-    const merged = [...existing];
-    let lastSeenSeq = existing.length > 0 ? existing[existing.length - 1].seq_no : 0;
+const insertWithGapDetection = (newEntries: any[], existing: any[]) => {
+  const existingSeqs = new Set(existing.map(e => e.seq_no));
+  const merged = [...existing];
+  let lastSeenSeq = existing.length > 0 ? existing[existing.length - 1].seq_no : 0;
 
-    for (const entry of newEntries) {
-      if (entry.seq_no > lastSeenSeq + 1) {
-        // Insert missing placeholders
-        for (let missingSeq = lastSeenSeq + 1; missingSeq < entry.seq_no; missingSeq++) {
+  newEntries.sort((a, b) => a.seq_no - b.seq_no);
+
+  for (const entry of newEntries) {
+    if (existingSeqs.has(entry.seq_no)) {
+      continue; // Skip duplicate
+    }
+
+    // Check for missing in-between
+    if (entry.seq_no > lastSeenSeq + 1) {
+      for (let missingSeq = lastSeenSeq + 1; missingSeq < entry.seq_no; missingSeq++) {
+        if (!existingSeqs.has(missingSeq)) {
           merged.push({
             seq_no: missingSeq,
             patient_id: entry.patient_id,
@@ -38,19 +46,52 @@ export default function FallbackLogsScreen() {
             late: false,
             missedLive: true,
           });
+          existingSeqs.add(missingSeq);
         }
       }
-      // Mark if this entry is not late but arrives after a gap (likely missed in live)
-      if (!entry.late && entry.seq_no > lastSeenSeq + 1) {
-        entry.missedLive = true;
-      }
-
-      merged.push(entry);
-      lastSeenSeq = entry.seq_no;
+      entry.missedLive = true;
     }
 
-    merged.sort((a, b) => a.seq_no - b.seq_no);
-    return merged;
+    // Also mark manually inserted fallback rows
+    if (entry.missedLive === undefined && entry.time === 'Recovered via fallback') {
+      entry.missedLive = true;
+    }
+
+    merged.push(entry);
+    existingSeqs.add(entry.seq_no);
+    lastSeenSeq = entry.seq_no;
+  }
+
+  merged.sort((a, b) => a.seq_no - b.seq_no);
+  return merged;
+};
+
+
+  const decryptRows = async (rows: any[]) => {
+    const decryptedRows: any[] = [];
+    for (const row of rows) {
+      try {
+        const decryptRes = await fetch(`${API_URL}/decrypt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ encrypted_data: row.encrypted_data }),
+        });
+        const decryptData = await decryptRes.json();
+
+        if (decryptData.decrypted_data) {
+          const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
+          const vitals = JSON.parse(cleaned);
+          vitals.time = row.time;
+          vitals.seq_no = row.seq_no;
+          vitals.late = row.late;
+          vitals.patient_id = row.patient_id;
+          decryptedRows.push(vitals);
+        }
+      } catch (err) {
+        console.log('Decryption failed:', err);
+      }
+    }
+    return decryptedRows;
   };
 
   useEffect(() => {
@@ -60,36 +101,14 @@ export default function FallbackLogsScreen() {
       try {
         const res = await fetch(`${API_URL}/fetch_by_seq_range?patient_id=${PATIENT_ID}&start=1&end=50`);
         const rows = await res.json();
-        const decryptedRows: any[] = [];
-
-        for (const row of rows) {
-          try {
-            const decryptRes = await fetch(`${API_URL}/decrypt`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ encrypted_data: row.encrypted_data }),
-            });
-            const decryptData = await decryptRes.json();
-
-            if (decryptData.decrypted_data) {
-              const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
-              const vitals = JSON.parse(cleaned);
-              vitals.time = row.time;
-              vitals.seq_no = row.seq_no;
-              vitals.late = row.late;
-              vitals.patient_id = row.patient_id;
-              decryptedRows.push(vitals);
-            }
-          } catch (err) {
-            console.log('Initial decryption failed:', err);
-          }
-        }
+        const decryptedRows = await decryptRows(rows);
 
         if (isMounted) {
           decryptedRows.sort((a, b) => a.seq_no - b.seq_no);
           const merged = insertWithGapDetection(decryptedRows, []);
           setLogs(merged);
-          setLastSeqNo(decryptedRows.length > 0 ? decryptedRows[decryptedRows.length - 1].seq_no : 0);
+          const last = decryptedRows.length > 0 ? decryptedRows[decryptedRows.length - 1].seq_no : 0;
+          setLastSeqNo(last);
         }
       } catch (e) {
         console.log('Initial fetch failed:', e);
@@ -107,45 +126,42 @@ export default function FallbackLogsScreen() {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const nextStart = lastSeqNo + 1;
-        const end = nextStart + 10;
+        const windowSize = 50;
+        const start = lastSeqNo + 1;
+        const end = start + windowSize - 1;
 
-        const res = await fetch(`${API_URL}/fetch_by_seq_range?patient_id=${PATIENT_ID}&start=${nextStart}&end=${end}`);
+        const res = await fetch(`${API_URL}/fetch_by_seq_range?patient_id=${PATIENT_ID}&start=${start}&end=${end}`);
         const rows = await res.json();
         if (!Array.isArray(rows) || rows.length === 0) return;
 
-        const decryptedRows: any[] = [];
+        const receivedSeqs = rows.map(r => r.seq_no);
+        const decryptedRows = await decryptRows(rows);
 
-        for (const row of rows) {
-          try {
-            const decryptRes = await fetch(`${API_URL}/decrypt`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ encrypted_data: row.encrypted_data }),
-            });
-            const decryptData = await decryptRes.json();
-
-            if (decryptData.decrypted_data) {
-              const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
-              const vitals = JSON.parse(cleaned);
-              vitals.time = row.time;
-              vitals.seq_no = row.seq_no;
-              vitals.late = row.late;
-              vitals.patient_id = row.patient_id;
-              decryptedRows.push(vitals);
-            }
-          } catch (err) {
-            console.log('Polling decryption failed:', err);
+        // Check for missing seq_nos in current window
+        const missingSeqs: number[] = [];
+        for (let s = start; s <= end; s++) {
+          if (!receivedSeqs.includes(s)) {
+            missingSeqs.push(s);
           }
         }
 
-        if (decryptedRows.length > 0) {
-          setLogs(prev => {
-            const merged = insertWithGapDetection(decryptedRows, prev);
-            return merged;
-          });
-          setLastSeqNo(decryptedRows[decryptedRows.length - 1].seq_no);
+        // Recover missing packets from DB if available
+        if (missingSeqs.length > 0) {
+          const recoveryRes = await fetch(`${API_URL}/fetch_by_seq_range?patient_id=${PATIENT_ID}&start=${missingSeqs[0]}&end=${missingSeqs[missingSeqs.length - 1]}`);
+          const recoveryRows = await recoveryRes.json();
+          const recovered = await decryptRows(recoveryRows);
+          recovered.forEach(r => (r.missedLive = true));
+          decryptedRows.push(...recovered);
         }
+
+        // Merge and update logs
+        setLogs(prev => {
+          const merged = insertWithGapDetection(decryptedRows, prev);
+          return merged;
+        });
+
+        const maxSeq = Math.max(...receivedSeqs, lastSeqNo);
+        setLastSeqNo(maxSeq);
       } catch (e) {
         console.log('Polling fetch error:', e);
       }
@@ -233,9 +249,9 @@ const styles = StyleSheet.create({
     color: '#2a3b4c',
   },
   lateRow: {
-    backgroundColor: '#ffe4e1', // soft red for late packets
+    backgroundColor: '#ffe4e1',
   },
   missedRow: {
-    backgroundColor: '#fff7cc', // yellow for missed live but recovered
+    backgroundColor: '#fff7cc',
   },
 });
