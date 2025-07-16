@@ -6,8 +6,8 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import API_BASE_URL from '../../config';
 
-const API_URL = 'http://192.168.2.159:8000';
 const PATIENT_ID = 'patient1';
 
 function formatTime(isoString: string) {
@@ -20,7 +20,7 @@ export default function FallbackLogsScreen() {
   const [loading, setLoading] = useState(true);
   const [lastSeqNo, setLastSeqNo] = useState<number>(0);
 
-const insertWithGapDetection = (newEntries: any[], existing: any[]) => {
+  const insertWithGapDetection = (newEntries: any[], existing: any[]) => {
   const existingSeqs = new Set(existing.map(e => e.seq_no));
   const merged = [...existing];
   let lastSeenSeq = existing.length > 0 ? existing[existing.length - 1].seq_no : 0;
@@ -71,7 +71,7 @@ const insertWithGapDetection = (newEntries: any[], existing: any[]) => {
     const decryptedRows: any[] = [];
     for (const row of rows) {
       try {
-        const decryptRes = await fetch(`${API_URL}/decrypt`, {
+        const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ encrypted_data: row.encrypted_data }),
@@ -99,7 +99,7 @@ const insertWithGapDetection = (newEntries: any[], existing: any[]) => {
 
     const fetchInitial = async () => {
       try {
-        const res = await fetch(`${API_URL}/fetch_by_seq_range?patient_id=${PATIENT_ID}&start=1&end=50`);
+        const res = await fetch(`${API_BASE_URL}/read_encrypted`);
         const rows = await res.json();
         const decryptedRows = await decryptRows(rows);
 
@@ -126,11 +126,11 @@ const insertWithGapDetection = (newEntries: any[], existing: any[]) => {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const windowSize = 50;
+        const windowSize = 10;
         const start = lastSeqNo + 1;
         const end = start + windowSize - 1;
 
-        const res = await fetch(`${API_URL}/fetch_by_seq_range?patient_id=${PATIENT_ID}&start=${start}&end=${end}`);
+        const res = await fetch(`${API_BASE_URL}/fetch_by_seq_range?patient_id=${PATIENT_ID}&start=${start}&end=${end}`);
         const rows = await res.json();
         if (!Array.isArray(rows) || rows.length === 0) return;
 
@@ -147,7 +147,7 @@ const insertWithGapDetection = (newEntries: any[], existing: any[]) => {
 
         // Recover missing packets from DB if available
         if (missingSeqs.length > 0) {
-          const recoveryRes = await fetch(`${API_URL}/fetch_by_seq_range?patient_id=${PATIENT_ID}&start=${missingSeqs[0]}&end=${missingSeqs[missingSeqs.length - 1]}`);
+          const recoveryRes = await fetch(`${API_BASE_URL}/fetch_by_seq_range?patient_id=${PATIENT_ID}&start=${missingSeqs[0]}&end=${missingSeqs[missingSeqs.length - 1]}`);
           const recoveryRows = await recoveryRes.json();
           const recovered = await decryptRows(recoveryRows);
           recovered.forEach(r => (r.missedLive = true));
