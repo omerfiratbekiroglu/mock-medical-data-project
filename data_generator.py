@@ -3,42 +3,31 @@ import asyncio
 import random
 import time
 import json
-from crypto_utils import encrypt_data
 import uuid
-
-API_URL = "http://localhost:8000/write_encrypted"  # or "http://api:8000/write_encrypted" if in Docker
-
-seq_counters = {}
-
-""" def generate_random_vitals(patient_id="patient1"):
-    global seq_counters
-
-    if patient_id not in seq_counters:
-        seq_counters[patient_id] = 1
-    else:
-        seq_counters[patient_id] += 1
-    
-    base = {
-        "uuid": str(uuid.uuid4()),
-        "seq_no": seq_counters[patient_id],
-        "patient_id": patient_id,
-        "heart_rate": random.randint(60, 100),
-        "oxygen_level": random.randint(95, 100),
-        "temp": round(random.uniform(36.0, 37.5), 1)
-    }
-
-    json_bytes = json.dumps(base).encode("utf-8")
-    padding_length = 5120 - len(json_bytes)
-    if padding_length < 0:
-        raise ValueError("Base packet too large")
-    print(f"Generated vitals without padding: {json_bytes}")
-    print(f"File size: {len(json_bytes)} bytes, padding: {padding_length} bytes, total: {len(json_bytes) + padding_length} bytes")
-    return (json_bytes + b"X" * padding_length) """
-
-import uuid
+import os
 import datetime
+from crypto_utils import encrypt_data
+
+API_URL = "http://localhost:8000/write_encrypted"
+SEQ_INIT_URL = "http://localhost:8000/get_last_seq_nos"
+RETRY_DIR = "retry_queue"
+os.makedirs(RETRY_DIR, exist_ok=True)
 
 seq_counters = {}
+
+async def initialize_seq_counters():
+    global seq_counters
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(SEQ_INIT_URL) as resp:
+                if resp.status != 200:
+                    raise Exception(f"Failed to get seq counters: {resp.status}")
+                data = await resp.json()
+                for pid, seq in data.items():
+                    seq_counters[pid] = seq
+                print("Initialized seq_counters via API:", seq_counters)
+    except Exception as e:
+        print(f"[!] Could not initialize seq counters via API: {e}")
 
 def generate_random_vitals(patient_id="patient1"):
     global seq_counters
@@ -66,28 +55,6 @@ def generate_random_vitals(patient_id="patient1"):
     padded_bytes = json_bytes + b'X' * padding_len
     return packet_dict, padded_bytes
 
-""" async def send_vitals(session, data):
-    try:
-        async with session.post(API_URL, json=data, timeout=1) as resp:
-            await resp.text()  # optional
-    except Exception as e:
-        print("Send error:", e)
-
-async def run_generator(period=1.0):
-    async with aiohttp.ClientSession() as session:
-        while True:
-            start = time.time()
-            vitals = generate_random_vitals()
-            # Encrypt the vitals as JSON string
-            encrypted = encrypt_data(vitals)
-            await send_vitals(session, {"encrypted_data": encrypted})
-            elapsed = time.time() - start
-            sleep_time = max(0, period - elapsed)
-            #print(f"Generated vitals: {vitals}")
-            #print(f"Sent (encrypted): {encrypted}")
-            print(f"Iteration took {elapsed:.2f} seconds")
-            await asyncio.sleep(sleep_time) """
-
 async def send_vitals(session, packet_dict, padded_bytes):
     encrypted = encrypt_data(padded_bytes)
 
@@ -95,14 +62,24 @@ async def send_vitals(session, packet_dict, padded_bytes):
         "uuid": packet_dict["uuid"],
         "seq_no": packet_dict["seq_no"],
         "patient_id": packet_dict["patient_id"],
-        "encrypted_data": encrypted
+        "encrypted_data": encrypted,
+        "late": False  # default for live packets
     }
 
     try:
         async with session.post(API_URL, json=payload, timeout=1) as resp:
+            if resp.status != 200:
+                raise Exception(f"Server returned {resp.status}")
             await resp.text()
     except Exception as e:
-        print("Send error:", e)
+        print(f"[!] Send failed (seq={packet_dict['seq_no']}): {e}")
+        fallback_path = os.path.join(RETRY_DIR, f"{packet_dict['uuid']}.json")
+        try:
+            with open(fallback_path, "w") as f:
+                json.dump(payload, f)
+            print(f"→ Saved to retry queue: {fallback_path}")
+        except Exception as file_err:
+            print(f"[!!] Could not save to fallback queue: {file_err}")
 
 async def run_generator(period=1.0):
     async with aiohttp.ClientSession() as session:
@@ -111,12 +88,13 @@ async def run_generator(period=1.0):
             packet_dict, padded_bytes = generate_random_vitals()
             await send_vitals(session, packet_dict, padded_bytes)
             elapsed = time.time() - start
-            print(f"Generated vitals: {packet_dict["heart_rate"]}, {packet_dict['oxygen_level']}, {packet_dict['temp']}")
+            print(f"Generated vitals: {packet_dict['heart_rate']}, {packet_dict['oxygen_level']}, {packet_dict['temp']}")
             print(f"Sent seq_no={packet_dict['seq_no']} uuid={packet_dict['uuid']} ({elapsed:.2f}s)")
             await asyncio.sleep(max(0, period - elapsed))
 
 if __name__ == "__main__":
     try:
+        asyncio.run(initialize_seq_counters())
         asyncio.run(run_generator(period=1.0))
     except KeyboardInterrupt:
         print("Stopped generator.")

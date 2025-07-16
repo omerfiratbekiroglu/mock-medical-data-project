@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import API_BASE_URL from '../../config';
 
-const API_URL = 'http://192.168.2.159:8000/read_encrypted?limit=10'; // Adjust if needed
+const API_URL = `${API_BASE_URL}/read_encrypted?limit=10`;
 
 function formatTime(isoString: string) {
   const d = new Date(isoString);
@@ -27,7 +28,7 @@ export default function LogsScreen() {
         for (const row of data.reverse()) {
           try {
             // Call /decrypt endpoint
-            const decryptRes = await fetch('http://192.168.2.159:8000/decrypt', {
+            const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ encrypted_data: row.encrypted_data })
@@ -65,14 +66,14 @@ export default function LogsScreen() {
     let isMounted = true;
     const poll = async () => {
       try {
-        const res = await fetch('http://192.168.2.159:8000/read_encrypted?limit=1');
+        const res = await fetch(`${API_BASE_URL}/read_encrypted?limit=1`);
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           const row = data[0];
           if (row.time !== lastTimeRef.current) {
             lastTimeRef.current = row.time;
             // Call /decrypt endpoint
-            const decryptRes = await fetch('http://192.168.2.159:8000/decrypt', {
+            const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ encrypted_data: row.encrypted_data })

@@ -35,6 +35,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="(tabs)/complete_logs"
+        options={{
+          title: 'Logs',
+          tabBarIcon: ({ color, size }) => <Ionicons name="list" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="(tabs)/heartrate"
         options={{
           title: 'Heart Rate',

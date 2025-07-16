@@ -47,6 +47,8 @@ class EncryptedDataIn(BaseModel):
     seq_no: int
     patient_id: str
     encrypted_data: str
+    late: bool = False
+
 
 # Write vitals + broadcast
 @app.post("/write")
@@ -91,32 +93,20 @@ async def read_vitals(limit: int = 10, patient_id: Optional[str] = None):
 
 # Write encrypted data
 
-""" @app.post("/write_encrypted")
-async def write_encrypted(data: EncryptedDataIn):
-    query = 
-        INSERT INTO encrypted_vitals (encrypted_data, time)
-        VALUES (:encrypted_data, NOW())
-        RETURNING time
-    
-    values = {"encrypted_data": data.encrypted_data}
-    try:
-        result = await database.fetch_one(query=query, values=values)
-        return {"message": "Encrypted data inserted"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) """
 
 @app.post("/write_encrypted")
 async def write_encrypted(data: EncryptedDataIn):
     query = """
-        INSERT INTO encrypted_vitals (uuid, seq_no, patient_id, encrypted_data, time)
-        VALUES (:uuid, :seq_no, :patient_id, :encrypted_data, NOW())
+        INSERT INTO encrypted_vitals (uuid, seq_no, patient_id, encrypted_data, time, late)
+        VALUES (:uuid, :seq_no, :patient_id, :encrypted_data, NOW(), :late)
         RETURNING time
     """
     values = {
         "uuid": data.uuid,
         "seq_no": data.seq_no,
         "patient_id": data.patient_id,
-        "encrypted_data": data.encrypted_data
+        "encrypted_data": data.encrypted_data,
+        "late": data.late
     }
 
     try:
@@ -132,31 +122,6 @@ async def write_encrypted(data: EncryptedDataIn):
             return {"message": "Duplicate packet", "uuid": data.uuid}
         raise HTTPException(status_code=500, detail=str(e))
     
-# Read encrypted data
-""" @app.get("/read_encrypted")
-async def read_encrypted(limit: int = 10):
-    query = 
-        SELECT encrypted_data, time FROM encrypted_vitals
-        ORDER BY time DESC
-        LIMIT :limit
-    
-    values = {"limit": limit}
-    try:
-        result = await database.fetch_all(query=query, values=values)
-        return result
-    except Exception as e:
-        import traceback
-        print("/read_encrypted error:", traceback.format_exc())
-        # Return error details for debugging
-        return {"error": str(e), "trace": traceback.format_exc()}
-
-@app.post("/decrypt")
-async def decrypt_endpoint(data: EncryptedDataIn):
-    try:
-        decrypted = decrypt_data(data.encrypted_data)
-        return {"decrypted_data": decrypted}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Decryption failed: {str(e)}") """
 
 @app.get("/read_encrypted")
 async def read_encrypted(limit: int = 10):
@@ -185,3 +150,39 @@ async def decrypt_endpoint(data: EncryptedDataOnly):
         return {"decrypted_data": decrypted}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Decryption failed: {str(e)}")
+    
+@app.post("/write_fallback")
+async def write_fallback(data: EncryptedDataIn):
+    query = """
+        INSERT INTO encrypted_vitals (uuid, seq_no, patient_id, encrypted_data, time, late)
+        VALUES (:uuid, :seq_no, :patient_id, :encrypted_data, NOW(), :late)
+        ON CONFLICT (uuid) DO NOTHING
+    """
+    try:
+        await database.execute(query=query, values=data.dict())
+        return {"message": "Fallback write accepted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/fetch_by_seq_range")
+async def fetch_by_seq_range(patient_id: str, start: int, end: int):
+    query = """
+        SELECT * FROM encrypted_vitals
+        WHERE patient_id = :pid AND seq_no BETWEEN :start AND :end
+        ORDER BY seq_no
+    """
+    return await database.fetch_all(query=query, values={"pid": patient_id, "start": start, "end": end})
+
+@app.get("/get_last_seq_nos")
+async def get_last_seq_nos():
+    query = """
+        SELECT patient_id, MAX(seq_no) AS last_seq
+        FROM encrypted_vitals
+        GROUP BY patient_id
+    """
+    try:
+        rows = await database.fetch_all(query)
+        result = {row["patient_id"]: row["last_seq"] or 0 for row in rows}
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
