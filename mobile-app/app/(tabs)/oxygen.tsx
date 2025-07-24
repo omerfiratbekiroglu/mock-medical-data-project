@@ -1,16 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Dimensions, StyleSheet } from 'react-native';
+import { View, Text, Dimensions, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import API_BASE_URL from '../../config';
 
 const chartConfig = {
   backgroundColor: '#fff',
   backgroundGradientFrom: '#fff',
   backgroundGradientTo: '#fff',
-  decimalPlaces: 0,
-  color: (opacity = 1) => `rgba(41, 128, 185,${opacity})`, // mavi ton
+  decimalPlaces: 1,
+  color: (opacity = 1) => `rgba(41, 128, 185,${opacity})`,
   labelColor: (opacity = 1) => `rgba(42,59,76,${opacity})`,
-  style: { borderRadius: 10 },
+  style: {
+    borderRadius: 10,
+  },
   propsForDots: {
     r: '4',
     strokeWidth: '2',
@@ -18,12 +21,17 @@ const chartConfig = {
   },
   fillShadowGradient: '#2980b9',
   fillShadowGradientOpacity: 0.1,
+  propsForLabels: {
+    fontSize: 10,
+    rotation: 45,
+  },
 };
 
 export default function OxygenLevelScreen() {
   const [labels, setLabels] = useState<string[]>([]);
   const [data, setData] = useState<number[]>([]);
   const lastTimeRef = useRef<string | null>(null);
+  const [expandedChart, setExpandedChart] = useState<'oxy' | 'other' | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -36,7 +44,8 @@ export default function OxygenLevelScreen() {
         const oxyLevels: number[] = [];
         const labelList: string[] = [];
 
-        for (const row of reversed) {
+        for (let i = 0; i < reversed.length; i++) {
+          const row = reversed[i];
           const decRes = await fetch(`${API_BASE_URL}/decrypt`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -46,7 +55,6 @@ export default function OxygenLevelScreen() {
           try {
             const cleaned = decData.decrypted_data.replace(/X+$/, '');
             const parsed = JSON.parse(cleaned);
-            console.log('Parsed data:', parsed);
             const oxy = Number(parsed.oxygen_level);
             if (!isNaN(oxy) && isFinite(oxy)) {
               oxyLevels.push(oxy);
@@ -114,50 +122,94 @@ export default function OxygenLevelScreen() {
     return () => { isMounted = false; };
   }, []);
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Oxygen Level (Live)</Text>
+  const renderChart = (id: 'oxy' | 'other', color: string, dataset: number[]) => {
+    const isExpanded = expandedChart === id;
+    const toggleExpand = () => {
+      setExpandedChart(prev => (prev === id ? null : id));
+    };
 
-      {data.length > 0 && data.every(n => typeof n === 'number' && isFinite(n)) ? (
+    if (expandedChart !== null && expandedChart !== id) {
+      return null; // Diğer grafik büyütülmüşse bu görünmesin
+    }
+
+    return (
+      <TouchableOpacity onPress={toggleExpand} activeOpacity={0.95}>
         <LineChart
           data={{
             labels,
-            datasets: [{
-              data,
-              color: (opacity = 1) => `rgba(41, 128, 185,${opacity})`,
-              strokeWidth: 2,
-            }],
+            datasets: [{ data: dataset, color: () => color }],
           }}
-          width={Dimensions.get('window').width - 40}
-          height={220}
-          yAxisSuffix=" %"
-          chartConfig={chartConfig}
+          width={Dimensions.get('window').width - 20}
+          height={isExpanded ? 360 : 220}
+          yAxisSuffix="%"
+          yLabelsOffset={10}
+          chartConfig={{
+            ...chartConfig,
+            propsForDots: {
+              r: '4',
+              strokeWidth: '2',
+              stroke: color,
+            },
+            fillShadowGradient: color,
+          }}
           bezier
-          style={styles.chart}
+          style={isExpanded ? styles.expanded : styles.chart}
           withVerticalLines={false}
           withHorizontalLines={true}
           withInnerLines={false}
-          fromZero
+          withDots={true}
+          withShadow={true}
+          fromZero={true}
+          segments={5}
+          renderDotContent={({ x, y, index }) => (
+            <Text
+              key={index}
+              style={{
+                position: 'absolute',
+                top: y - 12,
+                left: x - 12,
+                fontSize: 10,
+                color: '#2a3b4c',
+                fontWeight: 'bold',
+              }}
+            >
+              {dataset[index]}%
+            </Text>
+          )}
         />
-      ) : (
-        <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
-      )}
-    </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6fa' }}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Oxygen Level (Live)</Text>
+        {data.length > 0 ? (
+          <>
+            {renderChart('oxy', '#2980b9', data)}
+            {renderChart('other', '#e74c3c', data.map(v => v - 5))}
+          </>
+        ) : (
+          <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 function formatLabel(iso: string) {
   const d = new Date(iso);
-  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
+    paddingVertical: 20,
+    paddingHorizontal: 10,
     backgroundColor: '#f4f6fa',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
   },
   title: {
     fontSize: 24,
@@ -166,8 +218,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   chart: {
-    borderRadius: 10,
-    marginVertical: 8,
+    borderRadius: 12,
+    marginVertical: 10,
+    alignSelf: 'center',
+  },
+  expanded: {
+    zIndex: 1,
+    elevation: 2,
+    alignSelf: 'center',
   },
   loadingText: {
     marginTop: 20,

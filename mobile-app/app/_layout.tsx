@@ -1,9 +1,8 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Slot, useRouter } from 'expo-router';
+import { useState, useEffect } from 'react';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { ThemeProvider, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function RootLayout() {
@@ -12,17 +11,28 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
-    return null;
-  }
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const router = useRouter();
+
+  // ✅ Yönlendirmeyi layout yüklendikten sonra yap
+  useEffect(() => {
+    if (loaded) {
+      if (!isLoggedIn) {
+        router.replace('/LoginPage');
+      } else {
+        router.replace('/(tabs)/logs');
+
+
+      }
+    }
+  }, [loaded, isLoggedIn]);
+
+  // 🛑 Layout yüklenmeden null döndür
+  if (!loaded) return null;
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
+      <Slot /> {/* <== mutlaka burada olmalı */}
       <StatusBar style="auto" />
     </ThemeProvider>
   );
