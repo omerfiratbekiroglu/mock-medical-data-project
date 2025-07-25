@@ -128,11 +128,7 @@ export default function OxygenLevelScreen() {
       setExpandedChart(prev => (prev === id ? null : id));
     };
 
-    if (expandedChart !== null && expandedChart !== id) {
-      return null; // Diğer grafik büyütülmüşse bu görünmesin
-    }
-
-    return (
+    const chartComponent = (
       <TouchableOpacity onPress={toggleExpand} activeOpacity={0.95}>
         <LineChart
           data={{
@@ -153,7 +149,7 @@ export default function OxygenLevelScreen() {
             fillShadowGradient: color,
           }}
           bezier
-          style={isExpanded ? styles.expanded : styles.chart}
+          style={styles.chart}
           withVerticalLines={false}
           withHorizontalLines={true}
           withInnerLines={false}
@@ -179,6 +175,20 @@ export default function OxygenLevelScreen() {
         />
       </TouchableOpacity>
     );
+
+    if (isExpanded) {
+      return (
+        <View style={styles.expanded}>
+          {chartComponent}
+        </View>
+      );
+    }
+
+    if (expandedChart !== null && expandedChart !== id) {
+      return null;
+    }
+
+    return chartComponent;
   };
 
   return (
@@ -223,9 +233,15 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   expanded: {
-    zIndex: 1,
-    elevation: 2,
-    alignSelf: 'center',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingText: {
     marginTop: 20,
