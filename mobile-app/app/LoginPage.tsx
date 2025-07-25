@@ -6,7 +6,7 @@ export default function LoginPage() {
 
   const handleLogin = () => {
     // Auth işlemi yapılmadan direkt yönlendiriyoruz (örnek)
-    router.replace('../(tabs)');
+    router.replace('../(tabs)/logs');
   };
 
   return (

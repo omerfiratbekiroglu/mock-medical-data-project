@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Dimensions, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Dimensions, StyleSheet } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import API_BASE_URL from '../../config';
+
+const chartWidth = Dimensions.get('window').width - 40;
+const chartHeight = 260;
 
 const chartConfig = {
   backgroundColor: '#fff',
@@ -11,12 +14,16 @@ const chartConfig = {
   color: (opacity = 1) => `rgba(230, 126, 34, ${opacity})`,
   labelColor: (opacity = 1) => `rgba(42, 59, 76, ${opacity})`,
   propsForDots: {
-    r: '5',
+    r: '4',
     strokeWidth: '2',
     stroke: '#e67e22',
   },
   fillShadowGradient: '#e67e22',
   fillShadowGradientOpacity: 0.2,
+  propsForLabels: {
+    fontSize: 10,
+    rotation: 45, // ↖️ Açılı X ekseni etiketleri
+  },
   style: { borderRadius: 10 },
 };
 
@@ -65,9 +72,7 @@ export default function TemperatureScreen() {
     }
 
     loadInitial();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   useEffect(() => {
@@ -107,60 +112,57 @@ export default function TemperatureScreen() {
     };
 
     poll();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Temperature (Live)</Text>
 
-      {data.length > 0 && data.every((n) => typeof n === 'number' && isFinite(n)) ? (
-        <View style={styles.chartWrapper}>
-          <ScrollView horizontal contentContainerStyle={styles.scrollContainer}>
-            <LineChart
-              data={{
-                labels: formatLabels(labels),
-                datasets: [
-                  {
-                    data,
-                    color: (opacity = 1) => `rgba(230, 126, 34, ${opacity})`,
-                    strokeWidth: 2,
-                  },
-                ],
-              }}
-              width={Dimensions.get('window').width * 1.5}
-              height={260}
-              yAxisSuffix=" °C"
-              chartConfig={chartConfig}
-              bezier
-              style={styles.chart}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-              withInnerLines={false}
-              fromZero
-              withDots={true}
-              renderDotContent={({ x, y, index }) => (
+      {data.length > 0 && data.every(n => typeof n === 'number' && isFinite(n)) ? (
+        <View style={{ position: 'relative', width: chartWidth, height: chartHeight }}>
+          <LineChart
+            data={{
+              labels: labels, // 👈 tüm timestamp'leri göster
+              datasets: [{
+                data,
+                color: (opacity = 1) => `rgba(230, 126, 34, ${opacity})`,
+                strokeWidth: 2,
+              }],
+            }}
+            width={chartWidth}
+            height={chartHeight}
+            yAxisSuffix=" °C"
+            chartConfig={chartConfig}
+            bezier
+            style={styles.chart}
+            withVerticalLines={false}
+            withHorizontalLines={true}
+            withInnerLines={false}
+            fromZero
+            withDots={true}
+            renderDotContent={({ x, y, index }) => {
+              const offset = index % 2 === 0 ? -22 : 10; // Zigzag: yukarı / aşağı
+              return (
                 <Text
                   key={index}
                   style={{
                     position: 'absolute',
-                    top: y - 22,
+                    top: y + offset,
                     left: x - 12,
                     fontSize: 12,
                     fontWeight: 'bold',
                     color: '#e67e22',
                     backgroundColor: 'white',
-                    paddingHorizontal: 2,
+                    paddingHorizontal: 4,
                     borderRadius: 4,
                   }}
                 >
-                  {data[index].toFixed(1)}
+                  {data[index].toFixed(1)}°
                 </Text>
-              )}
-            />
-          </ScrollView>
+              );
+            }}
+          />
         </View>
       ) : (
         <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
@@ -172,10 +174,6 @@ export default function TemperatureScreen() {
 function formatLabelNow() {
   const d = new Date();
   return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-}
-
-function formatLabels(times: string[]) {
-  return times.map((t, i) => (i % 2 === 0 ? t : ''));
 }
 
 const styles = StyleSheet.create({
@@ -191,15 +189,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2a3b4c',
     marginBottom: 16,
-  },
-  chartWrapper: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    width: '100%',
-  },
-  scrollContainer: {
-    paddingHorizontal: 16,
-    alignItems: 'center',
   },
   chart: {
     borderRadius: 10,
