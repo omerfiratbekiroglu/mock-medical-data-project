@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Dimensions, StyleSheet } from 'react-native';
+import { View, Text, Dimensions, StyleSheet, TouchableOpacity } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import API_BASE_URL from '../../config';
+
+const chartWidth = Dimensions.get('window').width - 20;
+const chartHeight = 220;
 
 const chartConfig = {
   backgroundColor: '#fff',
@@ -18,6 +22,10 @@ const chartConfig = {
   },
   fillShadowGradient: '#e74c3c',
   fillShadowGradientOpacity: 0.1,
+  propsForLabels: {
+    fontSize: 10,
+    rotation: 45,
+  },
 };
 
 export default function HeartRateScreen() {
@@ -46,7 +54,6 @@ export default function HeartRateScreen() {
           try {
             const cleaned = decData.decrypted_data.replace(/X+$/, '');
             const parsed = JSON.parse(cleaned);
-            console.log('Parsed data:', parsed);
             const hr = Number(parsed.heart_rate);
             if (!isNaN(hr) && isFinite(hr)) {
               heartRates.push(hr);
@@ -115,49 +122,61 @@ export default function HeartRateScreen() {
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Heart Rate (Live)</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6fa' }}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Heart Rate (Live)</Text>
 
-      {data.length > 0 && data.every(n => typeof n === 'number' && isFinite(n)) ? (
-        <LineChart
-          data={{
-            labels,
-            datasets: [{
-              data,
-              color: (opacity = 1) => `rgba(231,76,60,${opacity})`,
-              strokeWidth: 2,
-            }],
-          }}
-          width={Dimensions.get('window').width - 40}
-          height={220}
-          yAxisSuffix=" bpm"
-          chartConfig={chartConfig}
-          bezier
-          style={styles.chart}
-          withVerticalLines={false}
-          withHorizontalLines={true}
-          withInnerLines={false}
-          fromZero
-        />
-      ) : (
-        <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
-      )}
-    </View>
+        {data.length > 0 ? (
+          <LineChart
+            data={{
+              labels,
+              datasets: [{ data }],
+            }}
+            width={chartWidth}
+            height={chartHeight}
+            yAxisSuffix=" bpm"
+            chartConfig={chartConfig}
+            bezier
+            style={styles.chart}
+            withVerticalLines={false}
+            withHorizontalLines={true}
+            withInnerLines={false}
+            fromZero
+            renderDotContent={({ x, y, index }) => (
+              <Text
+                key={index}
+                style={{
+                  position: 'absolute',
+                  top: y - 15,
+                  left: x - 12,
+                  fontSize: 9,
+                  color: '#2a3b4c',
+                  fontWeight: 'bold',
+                }}
+              >
+                {data[index]} bpm
+              </Text>
+            )}
+          />
+        ) : (
+          <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 function formatLabel(iso: string) {
   const d = new Date(iso);
-  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f4f6fa',
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
   },
   title: {
     fontSize: 24,
@@ -166,8 +185,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   chart: {
-    borderRadius: 10,
-    marginVertical: 8,
+    borderRadius: 12,
+    alignSelf: 'center',
   },
   loadingText: {
     marginTop: 20,
