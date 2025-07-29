@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +7,7 @@ import os
 import time
 from databases import Database
 from crypto_utils import decrypt_data
+import asyncpg
 
 # Load .env
 load_dotenv()
@@ -49,8 +50,6 @@ class EncryptedDataIn(BaseModel):
     encrypted_data: str
     late: bool = False
 
-
-# Write vitals + broadcast
 @app.post("/write")
 async def write_vitals(vitals: VitalsIn):
     start = time.time()
@@ -72,7 +71,6 @@ async def write_vitals(vitals: VitalsIn):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Read vitals
 @app.get("/read")
 async def read_vitals(limit: int = 10, patient_id: Optional[str] = None):
     query = """
@@ -91,9 +89,6 @@ async def read_vitals(limit: int = 10, patient_id: Optional[str] = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Write encrypted data
-
-
 @app.post("/write_encrypted")
 async def write_encrypted(data: EncryptedDataIn):
     query = """
@@ -108,7 +103,6 @@ async def write_encrypted(data: EncryptedDataIn):
         "encrypted_data": data.encrypted_data,
         "late": data.late
     }
-
     try:
         result = await database.fetch_one(query=query, values=values)
         return {
@@ -121,7 +115,6 @@ async def write_encrypted(data: EncryptedDataIn):
         if "duplicate key" in str(e).lower():
             return {"message": "Duplicate packet", "uuid": data.uuid}
         raise HTTPException(status_code=500, detail=str(e))
-    
 
 @app.get("/read_encrypted")
 async def read_encrypted(limit: int = 10):
@@ -150,7 +143,7 @@ async def decrypt_endpoint(data: EncryptedDataOnly):
         return {"decrypted_data": decrypted}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Decryption failed: {str(e)}")
-    
+
 @app.post("/write_fallback")
 async def write_fallback(data: EncryptedDataIn):
     query = """
@@ -163,7 +156,7 @@ async def write_fallback(data: EncryptedDataIn):
         return {"message": "Fallback write accepted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 @app.get("/fetch_by_seq_range")
 async def fetch_by_seq_range(patient_id: str, start: int, end: int):
     query = """
@@ -186,3 +179,23 @@ async def get_last_seq_nos():
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class LoginInput(BaseModel):
+    email: str
+    password: str
+
+@app.post("/login")
+async def login(request: Request):
+    data = await request.json()
+    email = data.get("email")
+    password = data.get("password")
+
+    query = "SELECT * FROM users WHERE email = :email AND password = :password"
+    values = {"email": email, "password": password}
+    result = await database.fetch_one(query=query, values=values)
+
+    if result:
+        return {"success": True, "message": "Login successful"}
+    else:
+        return {"success": False, "message": "Invalid credentials"}
+

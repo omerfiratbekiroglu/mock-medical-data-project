@@ -1,19 +1,50 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import API_BASE_URL from '../config'; // config.ts içinde tanımlı olduğundan emin ol
 
 export default function LoginPage() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    // Auth işlemi yapılmadan direkt yönlendiriyoruz (örnek)
-    router.replace('../(tabs)/logs');
+  const handleLogin = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        router.replace('../(tabs)/logs'); // Giriş başarılıysa yönlendir
+      } else {
+        Alert.alert('Login Failed', result.message); // Hatalı giriş
+      }
+    } catch (err) {
+      console.log('Login error:', err);
+      Alert.alert('Error', 'Something went wrong!');
+    }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Login</Text>
-      <TextInput style={styles.input} placeholder="Email" />
-      <TextInput style={styles.input} placeholder="Password" secureTextEntry />
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        autoCapitalize="none"
+        value={email}
+        onChangeText={setEmail}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Password"
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+      />
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
         <Text style={styles.buttonText}>Login</Text>
       </TouchableOpacity>
@@ -32,3 +63,4 @@ const styles = StyleSheet.create({
   buttonText: { color: 'white', textAlign: 'center', fontWeight: 'bold' },
   link: { marginTop: 15, textAlign: 'center', color: '#555' },
 });
+
