@@ -8,6 +8,7 @@ import time
 from databases import Database
 from crypto_utils import decrypt_data
 import asyncpg
+from fastapi import status
 
 # Load .env
 load_dotenv()
@@ -199,3 +200,17 @@ async def login(request: Request):
     else:
         return {"success": False, "message": "Invalid credentials"}
 
+@app.post("/register", status_code=status.HTTP_201_CREATED)
+async def register_user(request: Request):
+    data = await request.json()
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+
+    # E-posta zaten kayıtlı mı kontrol et
+    check_query = "SELECT id FROM users WHERE email = :email"
+    existing = await database.fetch_one(query=check_query, values={"email": email})
+    if existing:
+        raise HTTPException(status_code=409, detail="Email already registered")

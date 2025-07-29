@@ -48,7 +48,7 @@ export default function LoginPage() {
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
         <Text style={styles.buttonText}>Login</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push('../RegisterPage.tsx')}>
+      <TouchableOpacity onPress={() => router.push('/RegisterPage')}>
         <Text style={styles.link}>Don't have an account? Register</Text>
       </TouchableOpacity>
     </View>
