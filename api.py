@@ -214,3 +214,9 @@ async def register_user(request: Request):
     existing = await database.fetch_one(query=check_query, values={"email": email})
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
+    
+    insert_query = "INSERT INTO users (email, password) VALUES (:email, :password)"
+    await database.execute(query=insert_query, values={"email": email, "password": password})
+    return {"success": True, "message": "User registered successfully"}
+
+    

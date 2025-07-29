@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import API_BASE_URL from '../config';
+import API_BASE_URL from '../config'; // config.ts içinde doğru tanımlı olduğundan emin ol
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -10,34 +10,46 @@ export default function RegisterPage() {
 
   const handleRegister = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/register`, {
+      const res = await fetch(`${API_BASE_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
-      const result = await response.json();
-
-      if (response.ok) {
-        Alert.alert('Success', 'Account created successfully');
-        router.replace('/LoginPage');
+      if (res.status === 201) {
+        Alert.alert('Success', 'Registration successful');
+        router.replace('../LoginPage'); // Kayıt başarılıysa login sayfasına yönlendir
       } else {
-        Alert.alert('Error', result.detail || 'Registration failed');
+        const result = await res.json();
+        Alert.alert('Registration Failed', result.detail || 'Unknown error');
       }
-    } catch (error) {
-      Alert.alert('Error', 'Network error');
+    } catch (err) {
+      console.log('Registration error:', err);
+      Alert.alert('Error', 'Something went wrong!');
     }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Register</Text>
-      <TextInput style={styles.input} placeholder="Email" onChangeText={setEmail} value={email} />
-      <TextInput style={styles.input} placeholder="Password" secureTextEntry onChangeText={setPassword} value={password} />
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        autoCapitalize="none"
+        value={email}
+        onChangeText={setEmail}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Password"
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+      />
       <TouchableOpacity style={styles.button} onPress={handleRegister}>
         <Text style={styles.buttonText}>Register</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.replace('/LoginPage')}>
+      <TouchableOpacity onPress={() => router.push('../LoginPage')}>
         <Text style={styles.link}>Already have an account? Login</Text>
       </TouchableOpacity>
     </View>
