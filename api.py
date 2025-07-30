@@ -185,26 +185,12 @@ class LoginInput(BaseModel):
     email: str
     password: str
 
-@app.post("/login")
-async def login(request: Request):
-    data = await request.json()
-    email = data.get("email")
-    password = data.get("password")
-
-    query = "SELECT * FROM users WHERE email = :email AND password = :password"
-    values = {"email": email, "password": password}
-    result = await database.fetch_one(query=query, values=values)
-
-    if result:
-        return {"success": True, "message": "Login successful"}
-    else:
-        return {"success": False, "message": "Invalid credentials"}
-
 @app.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user(request: Request):
     data = await request.json()
     email = data.get("email")
     password = data.get("password")
+    role = data.get("role", "patient")  # Varsayılan olarak 'patient' verilir
 
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email and password are required")
@@ -214,9 +200,36 @@ async def register_user(request: Request):
     existing = await database.fetch_one(query=check_query, values={"email": email})
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
-    
-    insert_query = "INSERT INTO users (email, password) VALUES (:email, :password)"
-    await database.execute(query=insert_query, values={"email": email, "password": password})
+
+    # Yeni kullanıcıyı kaydet
+    insert_query = """
+        INSERT INTO users (email, password, role)
+        VALUES (:email, :password, :role)
+    """
+    await database.execute(query=insert_query, values={"email": email, "password": password, "role": role})
+
     return {"success": True, "message": "User registered successfully"}
 
-    
+
+@app.post("/login")
+async def login(request: Request):
+    data = await request.json()
+    email = data.get("email")
+    password = data.get("password")
+
+    query = "SELECT id, email, password, role FROM users WHERE email = :email"
+    values = {"email": email}
+    result = await database.fetch_one(query=query, values=values)
+
+    if result and result["password"] == password:
+        return {
+            "success": True,
+            "message": "Login successful",
+            "email": result["email"],
+            "role": result["role"]
+        }
+    else:
+        return {
+            "success": False,
+            "message": "Invalid credentials"
+        }
