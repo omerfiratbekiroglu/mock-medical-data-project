@@ -72,23 +72,39 @@ async def write_vitals(vitals: VitalsIn):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+
 @app.get("/read")
-async def read_vitals(limit: int = 10, patient_id: Optional[str] = None):
-    query = """
-        SELECT * FROM vitals
-        WHERE (:patient_id IS NULL OR patient_id = :patient_id)
-        ORDER BY time DESC
-        LIMIT :limit
-    """
-    values = {
-        "patient_id": patient_id,
-        "limit": limit
-    }
+async def read_vitals(patient_id: Optional[str] = None, user_id: Optional[int] = None, role: Optional[str] = None, limit: int = 10):
+    if role == "doctor":
+        # Doktor herkesi görebilir
+        query = """
+            SELECT * FROM vitals
+            ORDER BY time DESC
+            LIMIT :limit
+        """
+        values = {"limit": limit}
+    elif role == "patient" and user_id:
+        # Hasta sadece kendisini görür
+        query = """
+            SELECT * FROM vitals
+            WHERE patient_id = :patient_id
+            ORDER BY time DESC
+            LIMIT :limit
+        """
+        values = {"patient_id": str(user_id), "limit": limit}
+    else:
+        raise HTTPException(status_code=403, detail="Unauthorized or missing parameters")
+
     try:
         result = await database.fetch_all(query=query, values=values)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 @app.post("/write_encrypted")
 async def write_encrypted(data: EncryptedDataIn):
@@ -211,22 +227,24 @@ async def register_user(request: Request):
     return {"success": True, "message": "User registered successfully"}
 
 
+
+
+
 @app.post("/login")
-async def login(request: Request):
-    data = await request.json()
-    email = data.get("email")
-    password = data.get("password")
+async def login_user(data: LoginInput):
+    email = data.email
+    password = data.password
 
     query = "SELECT id, email, password, role FROM users WHERE email = :email"
-    values = {"email": email}
-    result = await database.fetch_one(query=query, values=values)
+    user = await database.fetch_one(query=query, values={"email": email})
 
-    if result and result["password"] == password:
+    if user and user["password"] == password:
         return {
             "success": True,
             "message": "Login successful",
-            "email": result["email"],
-            "role": result["role"]
+            "email": user["email"],
+            "user_id": user["id"],  # 🟢 Burası eksikse frontend patlar!
+            "role": user["role"]
         }
     else:
         return {

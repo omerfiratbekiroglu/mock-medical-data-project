@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import API_BASE_URL from '../../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = `${API_BASE_URL}/read_encrypted?limit=10`;
+
+const API_URL = `${API_BASE_URL}/read_encrypted?limit=20`;
 
 function formatTime(isoString: string) {
   const d = new Date(isoString);
@@ -22,6 +24,9 @@ export default function LogsScreen() {
       setLoading(true);
       try {
         const res = await fetch(API_URL);
+
+
+        
         const data = await res.json();
         console.log('API data:', data);
         const decryptedRows = [];
