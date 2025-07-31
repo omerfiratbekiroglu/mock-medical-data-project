@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import API_BASE_URL from '../config';
+import { useRouter } from 'expo-router';
 
-export default function PatientSelectScreen({ navigation }: any) {
-  const [patients, setPatients] = useState<{ id: number; email: string }[]>([]);
+export default function PatientSelectScreen() {
+  const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchPatients = async () => {
@@ -22,9 +24,9 @@ export default function PatientSelectScreen({ navigation }: any) {
     fetchPatients();
   }, []);
 
-  const handleSelectPatient = async (patientId: number) => {
-    await AsyncStorage.setItem('selectedPatientId', patientId.toString());
-    navigation.navigate('LogsScreen'); // logs ekranına yönlendirme
+  const handleSelectPatient = async (patient: any) => {
+    await AsyncStorage.setItem('selectedPatientId', patient.id.toString());
+    router.replace('/(tabs)/logs'); // ✅ logs ekranına yönlendir
   };
 
   return (
@@ -38,7 +40,7 @@ export default function PatientSelectScreen({ navigation }: any) {
             <TouchableOpacity
               key={index}
               style={styles.patientButton}
-              onPress={() => handleSelectPatient(patient.id)}
+              onPress={() => handleSelectPatient(patient)}
             >
               <Text style={styles.buttonText}>{patient.email}</Text>
             </TouchableOpacity>
