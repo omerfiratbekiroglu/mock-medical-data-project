@@ -3,7 +3,6 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-nat
 import API_BASE_URL from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-
 const API_URL = `${API_BASE_URL}/read_encrypted?limit=20`;
 
 function formatTime(isoString: string) {
@@ -14,62 +13,71 @@ function formatTime(isoString: string) {
 export default function LogsScreen() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [patientId, setPatientId] = useState<string | null>(null);
   const lastTimeRef = useRef<string | null>(null);
 
   // Initial load
   useEffect(() => {
     let isMounted = true;
-    const AES_KEY = "thisisaverysecretkey1234567890ab"; // Not needed anymore
-    async function loadInitial() {
+
+    const loadInitial = async () => {
       setLoading(true);
+      const selectedPatientId = await AsyncStorage.getItem('selectedPatientId');
+      setPatientId(selectedPatientId);
+      if (!selectedPatientId) return;
+
       try {
         const res = await fetch(API_URL);
-
-
-        
         const data = await res.json();
-        console.log('API data:', data);
         const decryptedRows = [];
+
         for (const row of data.reverse()) {
           try {
-            // Call /decrypt endpoint
             const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ encrypted_data: row.encrypted_data })
             });
+
             const decryptData = await decryptRes.json();
             if (decryptData.decrypted_data) {
-              const byteLength = new TextEncoder().encode(decryptData.decrypted_data).length;
-              console.log(`Decrypted data length: ${byteLength} bytes`);
               const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
               const vitals = JSON.parse(cleaned);
               vitals.time = row.time;
-              decryptedRows.push(vitals);
-            } else {
-              console.log('Decryption failed:', decryptData);
+
+              if (vitals.patient_id === selectedPatientId) {
+                decryptedRows.push(vitals);
+              }
             }
           } catch (err) {
             console.log('Decryption or parsing failed:', err);
           }
         }
+
         if (isMounted) {
           setLogs(decryptedRows);
           if (decryptedRows.length > 0) lastTimeRef.current = decryptedRows[0].time;
         }
       } catch (e) {
-        // fallback to mock data if error
         if (isMounted) setLogs([]);
       }
+
       setLoading(false);
-    }
+    };
+
     loadInitial();
+
     return () => { isMounted = false; };
   }, []);
 
+  // Polling
   useEffect(() => {
     let isMounted = true;
+
     const poll = async () => {
+      const selectedPatientId = await AsyncStorage.getItem('selectedPatientId');
+      if (!selectedPatientId) return;
+
       try {
         const res = await fetch(`${API_BASE_URL}/read_encrypted?limit=1`);
         const data = await res.json();
@@ -77,39 +85,42 @@ export default function LogsScreen() {
           const row = data[0];
           if (row.time !== lastTimeRef.current) {
             lastTimeRef.current = row.time;
-            // Call /decrypt endpoint
+
             const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ encrypted_data: row.encrypted_data })
             });
+
             const decryptData = await decryptRes.json();
             if (decryptData.decrypted_data) {
-              const byteLength = new TextEncoder().encode(decryptData.decrypted_data).length;
-              console.log(`Decrypted data length: ${byteLength} bytes`);
               const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
               const vitals = JSON.parse(cleaned);
               vitals.time = row.time;
-              if (isMounted) {
-                setLogs(prev => [vitals, ...prev].slice(0, 10));
+
+              if (vitals.patient_id === selectedPatientId) {
+                if (isMounted) {
+                  setLogs(prev => [vitals, ...prev].slice(0, 10));
+                }
               }
-            } else {
-              console.log('Decryption failed:', decryptData);
             }
           }
         }
       } catch (e) {
         // ignore polling errors
       }
+
       if (isMounted) setTimeout(poll, 500);
     };
+
     poll();
+
     return () => { isMounted = false; };
   }, []);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Live Vitals Logs</Text>
+      <Text style={styles.title}>Vitals for {patientId || '...'}</Text>
       {loading ? (
         <ActivityIndicator size="large" color="#2a3b4c" style={{ marginTop: 40 }} />
       ) : (
@@ -128,7 +139,7 @@ export default function LogsScreen() {
                   key={idx}
                   style={[
                     styles.dataRow,
-                    idx === 0 ? styles.newRow : null, // highlight the latest row
+                    idx === 0 ? styles.newRow : null,
                   ]}
                 >
                   <Text style={styles.cell}>{formatTime(row.time)}</Text>

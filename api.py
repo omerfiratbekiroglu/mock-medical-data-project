@@ -251,3 +251,14 @@ async def login_user(data: LoginInput):
             "success": False,
             "message": "Invalid credentials"
         }
+
+
+@app.get("/get_patients")
+async def get_patients():
+    query = "SELECT id, email FROM users WHERE role = 'patient'"
+    try:
+        rows = await database.fetch_all(query)
+        return rows
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
