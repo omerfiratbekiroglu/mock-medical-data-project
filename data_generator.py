@@ -29,7 +29,7 @@ async def initialize_seq_counters():
     except Exception as e:
         print(f"[!] Could not initialize seq counters via API: {e}")
 
-def generate_random_vitals(patient_id="patient1"):
+def generate_random_vitals(patient_id="2"):
     global seq_counters
 
     if patient_id not in seq_counters:

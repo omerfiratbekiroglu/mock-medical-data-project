@@ -83,7 +83,9 @@ export default function LogsScreen() {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           const row = data[0];
+
           if (row.time !== lastTimeRef.current) {
+
             lastTimeRef.current = row.time;
 
             const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
@@ -97,7 +99,7 @@ export default function LogsScreen() {
               const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
               const vitals = JSON.parse(cleaned);
               vitals.time = row.time;
-
+              console.log("patient id:", vitals.patient_id, "selectedPatientId:", selectedPatientId)
               if (vitals.patient_id === selectedPatientId) {
                 if (isMounted) {
                   setLogs(prev => [vitals, ...prev].slice(0, 10));

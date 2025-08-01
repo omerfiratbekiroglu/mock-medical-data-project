@@ -26,7 +26,7 @@ export default function PatientSelectScreen() {
 
   const handleSelectPatient = async (patient: any) => {
     await AsyncStorage.setItem('selectedPatientId', patient.id.toString());
-    router.replace('/(tabs)/logs'); // ✅ logs ekranına yönlendir
+    router.replace('../(tabs)/logs'); // ✅ logs ekranına yönlendir
   };
 
   return (
