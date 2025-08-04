@@ -9,6 +9,7 @@ from databases import Database
 from crypto_utils import decrypt_data
 import asyncpg
 from fastapi import status
+from fastapi import Request
 
 # Load .env
 load_dotenv()
@@ -254,11 +255,25 @@ async def login_user(data: LoginInput):
 
 
 @app.get("/get_patients")
-async def get_patients():
-    query = "SELECT id, email FROM users WHERE role = 'patient'"
-    try:
-        rows = await database.fetch_all(query)
-        return rows
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_patients(user_id: int = None, role: str = None):
+    if role == "caregiver" and user_id:
+        # Caregiver'a atanmış hasta id'lerini al
+        caregiver = await database.fetch_one(
+            "SELECT assigned_patients FROM users WHERE id = :id", {"id": user_id}
+        )
+        if not caregiver or not caregiver["assigned_patients"]:
+            return []
 
+        # "1,2" → [1, 2]
+        try:
+            ids = [int(i.strip()) for i in caregiver["assigned_patients"].split(",")]
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Invalid assigned_patients format")
+
+        query = "SELECT id, email FROM users WHERE id = ANY(:ids)"
+        return await database.fetch_all(query, {"ids": ids})
+    
+    else:
+        # Diğer roller tüm hastaları görür
+        query = "SELECT id, email FROM users WHERE role = 'patient'"
+        return await database.fetch_all(query)

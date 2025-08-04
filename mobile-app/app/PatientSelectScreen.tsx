@@ -9,20 +9,35 @@ export default function PatientSelectScreen() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/get_patients`);
-        const data = await res.json();
+useEffect(() => {
+  const fetchPatients = async () => {
+    try {
+      const role = await AsyncStorage.getItem('role');
+      const userId = await AsyncStorage.getItem('userId');
+
+      const res = await fetch(`${API_BASE_URL}/get_patients?user_id=${userId}&role=${role}`);
+      const data = await res.json();
+
+      console.log("Fetched patients:", data); // 🔍 ne geldiğini test etmek için
+
+      // Burası çok önemli: `data` bir array değilse boş array yap
+      if (Array.isArray(data)) {
         setPatients(data);
-      } catch (err) {
-        console.error('Failed to fetch patients:', err);
-        setPatients([]);
+      } else {
+        console.warn("Unexpected patient data format:", data);
+        setPatients([]); // Hatalı veri geldiğinde boş array
       }
-      setLoading(false);
-    };
-    fetchPatients();
-  }, []);
+
+    } catch (err) {
+      console.error('Failed to fetch patients:', err);
+      setPatients([]);
+    }
+    setLoading(false);
+  };
+
+  fetchPatients();
+}, []);
+
 
   const handleSelectPatient = async (patient: any) => {
     await AsyncStorage.setItem('selectedPatientId', patient.id.toString());
