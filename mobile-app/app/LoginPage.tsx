@@ -35,7 +35,7 @@ export default function LoginPage() {
         await AsyncStorage.setItem('userId', result.user_id.toString());
 
         // 👇 ROLE GÖRE YÖNLENDİRME
-        if (result.role === 'doctor') {
+        if (result.role === 'doctor' || result.role === 'caregiver') {
           router.replace('../PatientSelectScreen');
         } else {
           router.replace('../(tabs)/logs');
@@ -48,6 +48,8 @@ export default function LoginPage() {
       Alert.alert('Error', 'Something went wrong!');
     }
   };
+
+  
 
   return (
     <View style={styles.container}>
