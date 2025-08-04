@@ -3,6 +3,9 @@ import { View, Text, Dimensions, StyleSheet, TouchableOpacity, ScrollView } from
 import { LineChart } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import API_BASE_URL from '../../config';
+import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 const chartConfig = {
   backgroundColor: '#fff',
@@ -32,6 +35,19 @@ export default function OxygenLevelScreen() {
   const [data, setData] = useState<number[]>([]);
   const lastTimeRef = useRef<string | null>(null);
   const [expandedChart, setExpandedChart] = useState<'oxy' | 'other' | null>(null);
+  const router = useRouter();
+
+  const handleGoBack = () => {
+   router.push('../PatientSelectScreen');
+  };
+
+  const handleLogout = async () => {
+  await AsyncStorage.clear();
+  router.replace('/LoginPage'); // 👈 seni doğrudan login ekranına götürür
+  };
+
+
+
 
   useEffect(() => {
     let isMounted = true;
@@ -204,6 +220,22 @@ export default function OxygenLevelScreen() {
           <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
         )}
       </ScrollView>
+      <View style={{ marginTop: 20 }}>
+  <TouchableOpacity
+    onPress={handleGoBack}
+    style={{ backgroundColor: '#ccc', padding: 10, borderRadius: 50, marginBottom: 10 ,width: 100, alignSelf: 'center'}}
+  >
+    <Text style={{ textAlign: 'center', color: '#000' }}>← Go Back</Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+    onPress={handleLogout}
+    style={{ backgroundColor: '#517d86ff', padding: 10, borderRadius: 50, width: 100, alignSelf: 'center' }}
+  >
+    <Text style={{ textAlign: 'center', color: '#fff' }}>Logout</Text>
+  </TouchableOpacity>
+</View>
+
     </SafeAreaView>
   );
 }
