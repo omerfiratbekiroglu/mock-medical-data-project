@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Dimensions, StyleSheet } from 'react-native';
+import { View, Text, Dimensions, StyleSheet,TouchableOpacity } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import API_BASE_URL from '../../config';
+import { FontAwesome } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons'; // 👈 bu satırı ekle
+
+
+
 
 const chartWidth = Dimensions.get('window').width - 40;
 const chartHeight = 260;
@@ -30,6 +36,7 @@ const chartConfig = {
 export default function TemperatureScreen() {
   const [labels, setLabels] = useState<string[]>([]);
   const [data, setData] = useState<number[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
     let isMounted = true;
@@ -167,6 +174,32 @@ export default function TemperatureScreen() {
       ) : (
         <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
       )}
+
+<TouchableOpacity
+  onPress={() => router.push('../(tabs)/complete_logs')}
+  style={{
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    backgroundColor: '#3498db',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+  }}
+>
+  <Ionicons name="home" size={28} color="#fff" />
+</TouchableOpacity>
+
+
+
+
     </View>
   );
 }
