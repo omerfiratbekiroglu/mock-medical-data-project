@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import API_BASE_URL from '../../config';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 
 
 const chartConfig = {
@@ -227,13 +228,29 @@ export default function OxygenLevelScreen() {
   >
     <Text style={{ textAlign: 'center', color: '#000' }}>← Go Back</Text>
   </TouchableOpacity>
-
   <TouchableOpacity
-    onPress={handleLogout}
-    style={{ backgroundColor: '#517d86ff', padding: 10, borderRadius: 50, width: 100, alignSelf: 'center' }}
-  >
-    <Text style={{ textAlign: 'center', color: '#fff' }}>Logout</Text>
-  </TouchableOpacity>
+  onPress={() => router.push('../(tabs)/complete_logs')}
+  style={{
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    backgroundColor: '#3498db',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+  }}
+>
+  <Ionicons name="home" size={28} color="#fff" />
+</TouchableOpacity>
+
+
 </View>
 
     </SafeAreaView>
