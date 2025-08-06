@@ -6,6 +6,10 @@ import API_BASE_URL from '../../config';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from 'expo-router';
+import { useLayoutEffect } from 'react';
+import PatientDrawerButton from '../../components/PatientDrawerButton';
+import PatientDrawerPanel from '../../components/PatientDrawerPanel';
 
 
 const chartConfig = {
@@ -31,24 +35,28 @@ const chartConfig = {
   },
 };
 
+ 
 export default function OxygenLevelScreen() {
   const [labels, setLabels] = useState<string[]>([]);
   const [data, setData] = useState<number[]>([]);
   const lastTimeRef = useRef<string | null>(null);
   const [expandedChart, setExpandedChart] = useState<'oxy' | 'other' | null>(null);
   const router = useRouter();
+  const [drawerVisible, setDrawerVisible] = useState(false);
+
+  const toggleDrawer = () => {
+  setDrawerVisible((prev) => !prev);
+};
+
 
   const handleGoBack = () => {
-   router.push('../PatientSelectScreen');
+    router.push('../PatientSelectScreen');
   };
 
   const handleLogout = async () => {
-  await AsyncStorage.clear();
-  router.replace('/LoginPage'); // 👈 seni doğrudan login ekranına götürür
+    await AsyncStorage.clear();
+    router.replace('/LoginPage');
   };
-
-
-
 
   useEffect(() => {
     let isMounted = true;
@@ -210,6 +218,9 @@ export default function OxygenLevelScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6fa' }}>
+      <PatientDrawerButton onPress={(toggleDrawer)} />
+      <PatientDrawerPanel visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Oxygen Level (Live)</Text>
         {data.length > 0 ? (
@@ -222,37 +233,13 @@ export default function OxygenLevelScreen() {
         )}
       </ScrollView>
       <View style={{ marginTop: 20 }}>
-  <TouchableOpacity
-    onPress={handleGoBack}
-    style={{ backgroundColor: '#ccc', padding: 10, borderRadius: 50, marginBottom: 10 ,width: 100, alignSelf: 'center'}}
-  >
-    <Text style={{ textAlign: 'center', color: '#000' }}>← Go Back</Text>
-  </TouchableOpacity>
-  <TouchableOpacity
-  onPress={() => router.push('../(tabs)/complete_logs')}
-  style={{
-    position: 'absolute',
-    bottom: 30,
-    right: 20,
-    backgroundColor: '#3498db',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 5,
-  }}
->
-  <Ionicons name="home" size={28} color="#fff" />
-</TouchableOpacity>
-
-
-</View>
-
+        <TouchableOpacity
+          onPress={handleGoBack}
+          style={{ backgroundColor: '#ccc', padding: 10, borderRadius: 50, marginBottom: 10, width: 100, alignSelf: 'center' }}
+        >
+          <Text style={{ textAlign: 'center', color: '#000' }}>← Go Back</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
