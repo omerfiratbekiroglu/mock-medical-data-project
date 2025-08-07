@@ -1,50 +1,75 @@
 // components/PatientDrawerPanel.tsx
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions,} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-
+import API_BASE_URL from '../config';
 
 const width = Dimensions.get('window').width;
-const router = useRouter();
 
-const patients = [
-  { id: 1, name: 'Patient 1', age: 30, gender: 'Male' },
-  { id: 2, name: 'Patient 2', age: 25, gender: 'Female' },
-  { id: 3, name: 'Patient 3', age: 40, gender: 'Male' },
-];
+export default function PatientDrawerPanel({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const [patients, setPatients] = useState<{ id: number; email: string }[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const userId = await AsyncStorage.getItem('userId');
+        const role = await AsyncStorage.getItem('role');
+
+        const url = `${API_BASE_URL}/get_patients?user_id=${userId}&role=${role}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        setPatients(data);
+      } catch (error) {
+        console.error('Error fetching patients:', error);
+      }
+    };
+
+    if (visible) {
+      fetchPatients();
+    }
+  }, [visible]);
 
   const handleLogout = async () => {
     try {
-      await AsyncStorage.clear(); // Tüm verileri temizle
-      router.replace('/LoginPage'); // Login ekranına yönlendir
+      await AsyncStorage.clear();
+      router.replace('/LoginPage');
     } catch (error) {
       console.error('Logout error:', error);
     }
   };
 
-
-export default function PatientDrawerPanel({ visible, onClose }: { visible: boolean, onClose: () => void }) {
   if (!visible) return null;
 
   return (
     <View style={styles.drawer}>
       <Text style={styles.title}>Patient Info</Text>
-      {patients.map((p) => (
-        <TouchableOpacity key={p.id} style={styles.patientBox}>
-          <Text style={styles.name}>{p.name}</Text>
-          <Text>Age: {p.age}</Text>
-          <Text>Gender: {p.gender}</Text>
-        </TouchableOpacity>
-      ))}
+
+      {patients.length > 0 ? (
+        patients.map((p) => (
+          <TouchableOpacity key={p.id} style={styles.patientBox}>
+            <Text style={styles.name}>{p.email}</Text>
+          </TouchableOpacity>
+        ))
+      ) : (
+        <Text style={{ fontStyle: 'italic', color: '#555' }}>No patient data.</Text>
+      )}
 
       <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
         <Text style={{ color: '#fff' }}>Close</Text>
       </TouchableOpacity>
+
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <Text style={styles.logoutText}>Logout</Text>
-            </TouchableOpacity>
-      
+        <Text style={styles.logoutText}>Logout</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -83,18 +108,17 @@ const styles = StyleSheet.create({
   closeBtn: {
     backgroundColor: '#3498db',
     padding: 10,
-    marginTop: 20,
+    marginTop: 300,
     alignItems: 'center',
     borderRadius: 5,
   },
-   logoutButton: {
-    top: 10,
+  logoutButton: {
+    marginTop: 20,
     backgroundColor: '#e74c3c',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
-    
   },
   logoutText: {
     color: '#fff',
