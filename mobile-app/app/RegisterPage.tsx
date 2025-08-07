@@ -1,24 +1,26 @@
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import API_BASE_URL from '../config'; // config.ts içinde doğru tanımlı olduğundan emin ol
+import API_BASE_URL from '../config';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
 
   const handleRegister = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, first_name: firstName, last_name: lastName }),
       });
 
       if (res.status === 201) {
         Alert.alert('Success', 'Registration successful');
-        router.replace('../LoginPage'); // Kayıt başarılıysa login sayfasına yönlendir
+        router.replace('../LoginPage');
       } else {
         const result = await res.json();
         Alert.alert('Registration Failed', result.detail || 'Unknown error');
@@ -32,6 +34,23 @@ export default function RegisterPage() {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Register</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="First Name"
+        autoCapitalize="words"
+        value={firstName}
+        onChangeText={setFirstName}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Last Name"
+        autoCapitalize="words"
+        value={lastName}
+        onChangeText={setLastName}
+      />
+
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -39,6 +58,7 @@ export default function RegisterPage() {
         value={email}
         onChangeText={setEmail}
       />
+
       <TextInput
         style={styles.input}
         placeholder="Password"
@@ -46,9 +66,11 @@ export default function RegisterPage() {
         value={password}
         onChangeText={setPassword}
       />
+
       <TouchableOpacity style={styles.button} onPress={handleRegister}>
         <Text style={styles.buttonText}>Register</Text>
       </TouchableOpacity>
+
       <TouchableOpacity onPress={() => router.push('../LoginPage')}>
         <Text style={styles.link}>Already have an account? Login</Text>
       </TouchableOpacity>
@@ -64,3 +86,4 @@ const styles = StyleSheet.create({
   buttonText: { color: 'white', textAlign: 'center', fontWeight: 'bold' },
   link: { marginTop: 15, textAlign: 'center', color: '#555' },
 });
+

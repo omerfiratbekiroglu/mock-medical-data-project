@@ -8,6 +8,8 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
 
   useEffect(() => {
     const testStoredData = async () => {
@@ -34,7 +36,6 @@ export default function LoginPage() {
         await AsyncStorage.setItem('role', result.role);
         await AsyncStorage.setItem('userId', result.user_id.toString());
 
-        // 👇 ROLE GÖRE YÖNLENDİRME
         if (result.role === 'doctor' || result.role === 'caregiver') {
           router.replace('../PatientSelectScreen');
         } else {
@@ -49,11 +50,21 @@ export default function LoginPage() {
     }
   };
 
-  
-
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Login</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="First Name"
+        value={firstName}
+        onChangeText={setFirstName}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Last Name"
+        value={lastName}
+        onChangeText={setLastName}
+      />
       <TextInput
         style={styles.input}
         placeholder="Email"
