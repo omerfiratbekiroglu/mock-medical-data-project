@@ -5,6 +5,7 @@ import API_BASE_URL from '../config';
 
 export default function RegisterPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -15,7 +16,12 @@ export default function RegisterPage() {
       const res = await fetch(`${API_BASE_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, first_name: firstName, last_name: lastName }),
+        body: JSON.stringify({
+          email,
+          password,
+          first_name: firstName,
+          last_name: lastName,
+        }),
       });
 
       if (res.status === 201) {
@@ -55,6 +61,7 @@ export default function RegisterPage() {
         style={styles.input}
         placeholder="Email"
         autoCapitalize="none"
+        keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
       />
@@ -86,4 +93,3 @@ const styles = StyleSheet.create({
   buttonText: { color: 'white', textAlign: 'center', fontWeight: 'bold' },
   link: { marginTop: 15, textAlign: 'center', color: '#555' },
 });
-

@@ -207,10 +207,12 @@ async def register_user(request: Request):
     data = await request.json()
     email = data.get("email")
     password = data.get("password")
+    first_name = data.get("first_name")
+    last_name = data.get("last_name")
     role = data.get("role", "patient")  # Varsayılan olarak 'patient' verilir
 
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password are required")
+    if not email or not password or not first_name or not last_name:
+        raise HTTPException(status_code=400, detail="All fields are required")
 
     # E-posta zaten kayıtlı mı kontrol et
     check_query = "SELECT id FROM users WHERE email = :email"
@@ -220,10 +222,16 @@ async def register_user(request: Request):
 
     # Yeni kullanıcıyı kaydet
     insert_query = """
-        INSERT INTO users (email, password, role)
-        VALUES (:email, :password, :role)
+        INSERT INTO users (email, password, role, first_name, last_name)
+        VALUES (:email, :password, :role, :first_name, :last_name)
     """
-    await database.execute(query=insert_query, values={"email": email, "password": password, "role": role})
+    await database.execute(query=insert_query, values={
+        "email": email,
+        "password": password,
+        "role": role,
+        "first_name": first_name,
+        "last_name": last_name
+    })
 
     return {"success": True, "message": "User registered successfully"}
 
@@ -236,7 +244,7 @@ async def login_user(data: LoginInput):
     email = data.email
     password = data.password
 
-    query = "SELECT id, email, password, role FROM users WHERE email = :email"
+    query = "SELECT id, email, password, role, first_name, last_name FROM users WHERE email = :email"
     user = await database.fetch_one(query=query, values={"email": email})
 
     if user and user["password"] == password:
@@ -244,14 +252,18 @@ async def login_user(data: LoginInput):
             "success": True,
             "message": "Login successful",
             "email": user["email"],
-            "user_id": user["id"],  # 🟢 Burası eksikse frontend patlar!
-            "role": user["role"]
+            "user_id": user["id"],
+            "role": user["role"],
+            "first_name": user["first_name"],
+            "last_name": user["last_name"]
         }
     else:
         return {
             "success": False,
             "message": "Invalid credentials"
         }
+
+
 
 
 @app.get("/get_patients")
@@ -264,16 +276,19 @@ async def get_patients(user_id: int = None, role: str = None):
         if not caregiver or not caregiver["assigned_patients"]:
             return []
 
-        # "1,2" → [1, 2]
         try:
             ids = [int(i.strip()) for i in caregiver["assigned_patients"].split(",")]
         except Exception as e:
             raise HTTPException(status_code=400, detail="Invalid assigned_patients format")
 
-        query = "SELECT id, email FROM users WHERE id = ANY(:ids)"
+        query = """
+            SELECT id, email, first_name, last_name
+            FROM users
+            WHERE id = ANY(:ids)
+        """
         return await database.fetch_all(query, {"ids": ids})
     
     else:
-        # Diğer roller tüm hastaları görür
-        query = "SELECT id, email FROM users WHERE role = 'patient'"
+        query ="SELECT id, first_name, last_name FROM users WHERE role = 'patient'"
+
         return await database.fetch_all(query)

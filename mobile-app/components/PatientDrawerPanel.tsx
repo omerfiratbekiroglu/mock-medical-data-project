@@ -14,7 +14,7 @@ export default function PatientDrawerPanel({
   visible: boolean;
   onClose: () => void;
 }) {
-  const [patients, setPatients] = useState<{ id: number; email: string }[]>([]);
+  const [patients, setPatients] = useState<{ id: number; first_name: string; last_name: string  }[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function PatientDrawerPanel({
       {patients.length > 0 ? (
         patients.map((p) => (
           <TouchableOpacity key={p.id} style={styles.patientBox}>
-            <Text style={styles.name}>{p.email}</Text>
+            <Text style={styles.name}>{p.first_name}{p.last_name}</Text>
           </TouchableOpacity>
         ))
       ) : (

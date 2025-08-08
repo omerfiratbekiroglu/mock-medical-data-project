@@ -57,7 +57,7 @@ useEffect(() => {
               style={styles.patientButton}
               onPress={() => handleSelectPatient(patient)}
             >
-              <Text style={styles.buttonText}>{patient.email}</Text>
+              <Text style={styles.buttonText}>{patient.first_name}{patient.last_name}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>

@@ -8,8 +8,6 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
 
   useEffect(() => {
     const testStoredData = async () => {
@@ -35,8 +33,15 @@ export default function LoginPage() {
       if (result.success) {
         await AsyncStorage.setItem('role', result.role);
         await AsyncStorage.setItem('userId', result.user_id.toString());
+        
+        // Opsiyonel olarak ad soyad kaydedebilirsin
+        if (result.first_name) await AsyncStorage.setItem('firstName', result.first_name);
+        if (result.last_name) await AsyncStorage.setItem('lastName', result.last_name);
 
-        if (result.role === 'doctor' || result.role === 'caregiver') {
+        if( result.role === 'patient') {
+              await AsyncStorage.setItem('selectedPatientId', result.user_id.toString());
+        }
+        else if (result.role === 'doctor' || result.role === 'caregiver') {
           router.replace('../PatientSelectScreen');
         } else {
           router.replace('../(tabs)/logs');
@@ -53,18 +58,6 @@ export default function LoginPage() {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Login</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="First Name"
-        value={firstName}
-        onChangeText={setFirstName}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Last Name"
-        value={lastName}
-        onChangeText={setLastName}
-      />
       <TextInput
         style={styles.input}
         placeholder="Email"
