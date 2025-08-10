@@ -10,6 +10,7 @@ import { useNavigation } from 'expo-router';
 import { useLayoutEffect } from 'react';
 import PatientDrawerButton from '../../components/PatientDrawerButton';
 import PatientDrawerPanel from '../../components/PatientDrawerPanel';
+import PageWithNavbar from '../../components/PageWithNavbar';
 
 
 const chartConfig = {
@@ -217,8 +218,7 @@ export default function OxygenLevelScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6fa' }}>
-      <PatientDrawerButton onPress={(toggleDrawer)} />
+    <PageWithNavbar>
       <PatientDrawerPanel visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
 
       <ScrollView contentContainerStyle={styles.container}>
@@ -240,7 +240,7 @@ export default function OxygenLevelScreen() {
           <Text style={{ textAlign: 'center', color: '#000' }}>← Go Back</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </PageWithNavbar>
   );
 }
 

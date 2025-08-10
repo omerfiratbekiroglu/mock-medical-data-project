@@ -4,7 +4,8 @@ import { LineChart } from 'react-native-chart-kit';
 import API_BASE_URL from '../../config';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons'; // 👈 bu satırı ekle
+import { Ionicons } from '@expo/vector-icons';
+import PageWithNavbar from '../../components/PageWithNavbar';
 
 
 
@@ -123,7 +124,8 @@ export default function TemperatureScreen() {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <PageWithNavbar>
+      <View style={styles.container}>
       <Text style={styles.title}>Temperature (Live)</Text>
 
       {data.length > 0 && data.every(n => typeof n === 'number' && isFinite(n)) ? (
@@ -200,7 +202,8 @@ export default function TemperatureScreen() {
 
 
 
-    </View>
+      </View>
+    </PageWithNavbar>
   );
 }
 
@@ -212,7 +215,6 @@ function formatLabelNow() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f4f6fa',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,

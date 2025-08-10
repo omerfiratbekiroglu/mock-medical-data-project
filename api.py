@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
@@ -202,6 +203,30 @@ class LoginInput(BaseModel):
     email: str
     password: str
 
+# Caregiver Notes Models
+class CaregiverNoteCreate(BaseModel):
+    patient_id: int
+    title: str
+    content: str
+    care_level: int = Field(ge=1, le=5)
+
+class CaregiverNoteUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None  
+    care_level: Optional[int] = Field(None, ge=1, le=5)
+
+class CaregiverNoteResponse(BaseModel):
+    id: int
+    patient_id: int
+    caregiver_id: int
+    caregiver_name: str
+    patient_name: str
+    title: str
+    content: str
+    care_level: int
+    created_at: datetime
+    updated_at: datetime
+
 @app.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user(request: Request):
     data = await request.json()
@@ -292,3 +317,307 @@ async def get_patients(user_id: int = None, role: str = None):
         query ="SELECT id, first_name, last_name FROM users WHERE role = 'patient'"
 
         return await database.fetch_all(query)
+
+# Authorization Helper Functions
+async def check_caregiver_patient_access(caregiver_id: int, patient_id: int):
+    """Check if caregiver has access to this patient"""
+    query = """
+        SELECT assigned_patients FROM users 
+        WHERE id = :caregiver_id AND role = 'caregiver'
+    """
+    caregiver = await database.fetch_one(query, {"caregiver_id": caregiver_id})
+    
+    if not caregiver or not caregiver["assigned_patients"]:
+        return False
+    
+    try:
+        assigned_ids = [int(i.strip()) for i in caregiver["assigned_patients"].split(",")]
+        return patient_id in assigned_ids
+    except:
+        return False
+
+async def check_note_ownership(caregiver_id: int, note_id: int):
+    """Check if note belongs to this caregiver"""
+    query = "SELECT caregiver_id FROM caregiver_notes WHERE id = :note_id"
+    note = await database.fetch_one(query, {"note_id": note_id})
+    return note and note["caregiver_id"] == caregiver_id
+
+async def check_doctor_role(user_id: int):
+    """Check if user is a doctor"""
+    query = "SELECT role FROM users WHERE id = :user_id"
+    user = await database.fetch_one(query, {"user_id": user_id})
+    return user and user["role"] == "doctor"
+
+# Caregiver Notes CRUD Endpoints
+@app.post("/caregiver_notes")
+async def create_caregiver_note(note: CaregiverNoteCreate, caregiver_id: int, role: str):
+    # Check if user is caregiver
+    if role != "caregiver":
+        raise HTTPException(status_code=403, detail="Only caregivers can create notes")
+    
+    # Check if caregiver has access to this patient
+    if not await check_caregiver_patient_access(caregiver_id, note.patient_id):
+        raise HTTPException(status_code=403, detail="Access denied to this patient")
+    
+    query = """
+        INSERT INTO caregiver_notes (patient_id, caregiver_id, title, content, care_level)
+        VALUES (:patient_id, :caregiver_id, :title, :content, :care_level)
+        RETURNING id, created_at, updated_at
+    """
+    try:
+        result = await database.fetch_one(query, {
+            "patient_id": note.patient_id,
+            "caregiver_id": caregiver_id,
+            "title": note.title,
+            "content": note.content,
+            "care_level": note.care_level
+        })
+        return {
+            "message": "Note created successfully",
+            "note_id": result["id"],
+            "created_at": result["created_at"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/caregiver_notes")
+async def get_caregiver_notes(caregiver_id: int, role: str, patient_id: Optional[int] = None):
+    # Check if user is caregiver
+    if role != "caregiver":
+        raise HTTPException(status_code=403, detail="Only caregivers can access their notes")
+    
+    base_query = """
+        SELECT 
+            cn.id, cn.patient_id, cn.caregiver_id, cn.title, cn.content, 
+            cn.care_level, cn.created_at, cn.updated_at,
+            CONCAT(cu.first_name, ' ', cu.last_name) as caregiver_name,
+            CONCAT(pu.first_name, ' ', pu.last_name) as patient_name
+        FROM caregiver_notes cn
+        JOIN users cu ON cn.caregiver_id = cu.id
+        JOIN users pu ON cn.patient_id = pu.id
+        WHERE cn.caregiver_id = :caregiver_id
+    """
+    
+    values = {"caregiver_id": caregiver_id}
+    
+    if patient_id:
+        # Check access to specific patient
+        if not await check_caregiver_patient_access(caregiver_id, patient_id):
+            raise HTTPException(status_code=403, detail="Access denied to this patient")
+        base_query += " AND cn.patient_id = :patient_id"
+        values["patient_id"] = patient_id
+    
+    base_query += " ORDER BY cn.created_at DESC"
+    
+    try:
+        result = await database.fetch_all(base_query, values)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/caregiver_notes/{note_id}")
+async def update_caregiver_note(note_id: int, note_update: CaregiverNoteUpdate, caregiver_id: int, role: str):
+    # Check if user is caregiver
+    if role != "caregiver":
+        raise HTTPException(status_code=403, detail="Only caregivers can update notes")
+    
+    # Check note ownership
+    if not await check_note_ownership(caregiver_id, note_id):
+        raise HTTPException(status_code=403, detail="You can only update your own notes")
+    
+    # Build dynamic update query
+    updates = []
+    values = {"note_id": note_id}
+    
+    if note_update.title is not None:
+        updates.append("title = :title")
+        values["title"] = note_update.title
+    if note_update.content is not None:
+        updates.append("content = :content") 
+        values["content"] = note_update.content
+    if note_update.care_level is not None:
+        updates.append("care_level = :care_level")
+        values["care_level"] = note_update.care_level
+    
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    updates.append("updated_at = NOW()")
+    query = f"UPDATE caregiver_notes SET {', '.join(updates)} WHERE id = :note_id RETURNING updated_at"
+    
+    try:
+        result = await database.fetch_one(query, values)
+        return {"message": "Note updated successfully", "updated_at": result["updated_at"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/caregiver_notes/{note_id}")
+async def delete_caregiver_note(note_id: int, caregiver_id: int, role: str):
+    # Check if user is caregiver
+    if role != "caregiver":
+        raise HTTPException(status_code=403, detail="Only caregivers can delete notes")
+    
+    # Check note ownership
+    if not await check_note_ownership(caregiver_id, note_id):
+        raise HTTPException(status_code=403, detail="You can only delete your own notes")
+    
+    query = "DELETE FROM caregiver_notes WHERE id = :note_id"
+    
+    try:
+        await database.execute(query, {"note_id": note_id})
+        return {"message": "Note deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Doctor Read-Only Endpoints
+@app.get("/caregiver_notes/by_patient/{patient_id}")
+async def get_notes_by_patient(patient_id: int, user_id: int, role: str):
+    # Check if user is doctor
+    if not await check_doctor_role(user_id):
+        raise HTTPException(status_code=403, detail="Only doctors can view patient notes")
+    
+    query = """
+        SELECT 
+            cn.id, cn.patient_id, cn.caregiver_id, cn.title, cn.content, 
+            cn.care_level, cn.created_at, cn.updated_at,
+            CONCAT(cu.first_name, ' ', cu.last_name) as caregiver_name,
+            CONCAT(pu.first_name, ' ', pu.last_name) as patient_name
+        FROM caregiver_notes cn
+        JOIN users cu ON cn.caregiver_id = cu.id
+        JOIN users pu ON cn.patient_id = pu.id
+        WHERE cn.patient_id = :patient_id
+        ORDER BY cn.created_at DESC
+    """
+    
+    try:
+        result = await database.fetch_all(query, {"patient_id": patient_id})
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/caregiver_notes/by_care_level")
+async def get_notes_by_care_level(
+    user_id: int, 
+    role: str, 
+    care_level: Optional[int] = None,
+    patient_id: Optional[int] = None,
+    limit: int = 50
+):
+    # Check if user is doctor
+    if not await check_doctor_role(user_id):
+        raise HTTPException(status_code=403, detail="Only doctors can filter notes")
+    
+    base_query = """
+        SELECT 
+            cn.id, cn.patient_id, cn.caregiver_id, cn.title, cn.content, 
+            cn.care_level, cn.created_at, cn.updated_at,
+            CONCAT(cu.first_name, ' ', cu.last_name) as caregiver_name,
+            CONCAT(pu.first_name, ' ', pu.last_name) as patient_name
+        FROM caregiver_notes cn
+        JOIN users cu ON cn.caregiver_id = cu.id
+        JOIN users pu ON cn.patient_id = pu.id
+        WHERE 1=1
+    """
+    
+    values = {"limit": limit}
+    
+    if care_level is not None:
+        if care_level < 1 or care_level > 5:
+            raise HTTPException(status_code=400, detail="Care level must be between 1 and 5")
+        base_query += " AND cn.care_level = :care_level"
+        values["care_level"] = care_level
+    
+    if patient_id is not None:
+        base_query += " AND cn.patient_id = :patient_id"
+        values["patient_id"] = patient_id
+    
+    base_query += " ORDER BY cn.created_at DESC LIMIT :limit"
+    
+    try:
+        result = await database.fetch_all(base_query, values)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/caregiver_notes/all")
+async def get_all_notes(user_id: int, role: str, limit: int = 100):
+    # Check if user is doctor
+    if not await check_doctor_role(user_id):
+        raise HTTPException(status_code=403, detail="Only doctors can view all notes")
+    
+    query = """
+        SELECT 
+            cn.id, cn.patient_id, cn.caregiver_id, cn.title, cn.content, 
+            cn.care_level, cn.created_at, cn.updated_at,
+            CONCAT(cu.first_name, ' ', cu.last_name) as caregiver_name,
+            CONCAT(pu.first_name, ' ', pu.last_name) as patient_name
+        FROM caregiver_notes cn
+        JOIN users cu ON cn.caregiver_id = cu.id
+        JOIN users pu ON cn.patient_id = pu.id
+        ORDER BY cn.created_at DESC
+        LIMIT :limit
+    """
+    
+    try:
+        result = await database.fetch_all(query, {"limit": limit})
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/doctor/my_patients_notes")
+async def get_doctor_patients_notes(user_id: int, role: str, limit: int = 100):
+    """Doktorun sahip olduğu hastaların tüm caregiver notlarını listele"""
+    # Check if user is doctor
+    if not await check_doctor_role(user_id):
+        raise HTTPException(status_code=403, detail="Only doctors can view patient notes")
+    
+    query = """
+        SELECT 
+            cn.id, cn.patient_id, cn.caregiver_id, cn.title, cn.content, 
+            cn.care_level, cn.created_at, cn.updated_at,
+            CONCAT(cu.first_name, ' ', cu.last_name) as caregiver_name,
+            CONCAT(pu.first_name, ' ', pu.last_name) as patient_name,
+            pu.email as patient_email
+        FROM caregiver_notes cn
+        JOIN users cu ON cn.caregiver_id = cu.id
+        JOIN users pu ON cn.patient_id = pu.id
+        WHERE pu.role = 'patient'
+        ORDER BY cn.created_at DESC, pu.first_name ASC
+        LIMIT :limit
+    """
+    
+    try:
+        result = await database.fetch_all(query, {"limit": limit})
+        
+        # Grupla hastalara göre organize et
+        patients_notes = {}
+        for note in result:
+            patient_key = f"{note['patient_name']} (ID: {note['patient_id']})"
+            if patient_key not in patients_notes:
+                patients_notes[patient_key] = {
+                    "patient_info": {
+                        "patient_id": note["patient_id"],
+                        "patient_name": note["patient_name"],
+                        "patient_email": note["patient_email"]
+                    },
+                    "notes": []
+                }
+            
+            patients_notes[patient_key]["notes"].append({
+                "note_id": note["id"],
+                "title": note["title"],
+                "content": note["content"],
+                "care_level": note["care_level"],
+                "caregiver_name": note["caregiver_name"],
+                "caregiver_id": note["caregiver_id"],
+                "created_at": note["created_at"],
+                "updated_at": note["updated_at"]
+            })
+        
+        return {
+            "total_patients": len(patients_notes),
+            "total_notes": len(result),
+            "patients_with_notes": patients_notes
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

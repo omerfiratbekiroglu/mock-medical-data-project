@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import API_BASE_URL from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import PageWithNavbar from '../../components/PageWithNavbar';
 
 const API_URL = `${API_BASE_URL}/read_encrypted?limit=20`;
 
@@ -121,7 +122,8 @@ export default function LogsScreen() {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <PageWithNavbar>
+      <View style={styles.container}>
       <Text style={styles.title}>Vitals for {patientId || '...'}</Text>
       {loading ? (
         <ActivityIndicator size="large" color="#2a3b4c" style={{ marginTop: 40 }} />
@@ -155,14 +157,14 @@ export default function LogsScreen() {
           </View>
         </ScrollView>
       )}
-    </View>
+      </View>
+    </PageWithNavbar>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f4f6fa',
     alignItems: 'center',
     justifyContent: 'flex-start',
     padding: 16,

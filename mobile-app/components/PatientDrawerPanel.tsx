@@ -38,6 +38,30 @@ export default function PatientDrawerPanel({
     }
   }, [visible]);
 
+  const handlePatientSelect = async (patient: { id: number; first_name: string; last_name: string }) => {
+    try {
+      const role = await AsyncStorage.getItem('role');
+      
+      if (role === 'doctor') {
+        // Doctor için hasta notları sayfasına git
+        router.push({
+          pathname: '/PatientNotesViewScreen',
+          params: {
+            patientId: patient.id.toString(),
+            patientName: `${patient.first_name} ${patient.last_name}`
+          }
+        });
+      } else {
+        // Caregiver/Patient için mevcut davranış
+        await AsyncStorage.setItem('selectedPatientId', patient.id.toString());
+        router.push('/(tabs)/logs');
+      }
+      onClose();
+    } catch (error) {
+      console.error('Patient select error:', error);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await AsyncStorage.clear();
@@ -55,8 +79,12 @@ export default function PatientDrawerPanel({
 
       {patients.length > 0 ? (
         patients.map((p) => (
-          <TouchableOpacity key={p.id} style={styles.patientBox}>
-            <Text style={styles.name}>{p.first_name}{p.last_name}</Text>
+          <TouchableOpacity 
+            key={p.id} 
+            style={styles.patientBox}
+            onPress={() => handlePatientSelect(p)}
+          >
+            <Text style={styles.name}>{p.first_name} {p.last_name}</Text>
           </TouchableOpacity>
         ))
       ) : (

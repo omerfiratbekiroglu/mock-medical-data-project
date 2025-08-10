@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import PageWithNavbar from '../../components/PageWithNavbar';
 
 export default function CompleteLogsScreen() {
   const router = useRouter();
@@ -16,12 +17,14 @@ export default function CompleteLogsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <PageWithNavbar>
+      <View style={styles.container}>
       <Text style={styles.header}>Complete Logs</Text>
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
-    </View>
+      </View>
+    </PageWithNavbar>
   );
 }
 
@@ -30,7 +33,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9f9f9',
     padding: 20,
   },
   header: {

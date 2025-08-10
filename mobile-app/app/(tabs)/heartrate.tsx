@@ -3,6 +3,7 @@ import { View, Text, Dimensions, StyleSheet, TouchableOpacity } from 'react-nati
 import { LineChart } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import API_BASE_URL from '../../config';
+import PageWithNavbar from '../../components/PageWithNavbar';
 
 const chartWidth = Dimensions.get('window').width - 20;
 const chartHeight = 220;
@@ -122,7 +123,7 @@ export default function HeartRateScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f4f6fa' }}>
+    <PageWithNavbar>
       <View style={styles.container}>
         <Text style={styles.title}>Heart Rate (Live)</Text>
 
@@ -162,7 +163,7 @@ export default function HeartRateScreen() {
           <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
         )}
       </View>
-    </SafeAreaView>
+    </PageWithNavbar>
   );
 }
 
