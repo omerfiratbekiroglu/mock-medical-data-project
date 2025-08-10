@@ -61,6 +61,18 @@ export default function TabLayout() {
           title: 'Temperature',
           tabBarIcon: ({ color, size }) => <Ionicons name="thermometer" color={color} size={size} />,
         }}
+        
+       
+      />
+
+       <Tabs.Screen
+        name="(tabs)/patient_update"
+        options={{
+          title: 'Temperature',
+          tabBarIcon: ({ color, size }) => <Ionicons name="thermometer" color={color} size={size} />,
+        }}
+        
+       
       />
     </Tabs>
  
