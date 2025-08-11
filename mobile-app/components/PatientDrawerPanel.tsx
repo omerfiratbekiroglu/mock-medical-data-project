@@ -1,9 +1,18 @@
 // components/PatientDrawerPanel.tsx
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import API_BASE_URL from '../config';
+
+interface PatientWithAlert {
+  id: number;
+  first_name: string;
+  last_name: string;
+  hasHighPriorityNotes?: boolean;
+  maxCareLevel?: number;
+}
 
 const width = Dimensions.get('window').width;
 
@@ -14,7 +23,7 @@ export default function PatientDrawerPanel({
   visible: boolean;
   onClose: () => void;
 }) {
-  const [patients, setPatients] = useState<{ id: number; first_name: string; last_name: string  }[]>([]);
+  const [patients, setPatients] = useState<PatientWithAlert[]>([]);
   const [userRole, setUserRole] = useState<string | null>(null);
   const router = useRouter();
 
@@ -36,7 +45,47 @@ export default function PatientDrawerPanel({
         const response = await fetch(url);
         const data = await response.json();
 
-        setPatients(data);
+        // Doktor ise hasta notlarını kontrol et ve kritik seviyeyi belirle
+        if (role === 'doctor') {
+          const patientsWithAlerts = await Promise.all(
+            data.map(async (patient: PatientWithAlert) => {
+              try {
+                // Her hasta için en yüksek care level'ı al
+                const notesResponse = await fetch(
+                  `${API_BASE_URL}/caregiver_notes/by_patient/${patient.id}?user_id=${userId}&role=${role}`
+                );
+                const notes = await notesResponse.json();
+                
+                if (Array.isArray(notes) && notes.length > 0) {
+                  const maxCareLevel = Math.max(...notes.map((note: any) => note.care_level || 0));
+                  return {
+                    ...patient,
+                    hasHighPriorityNotes: maxCareLevel >= 4, // Care level 4-5 kritik
+                    maxCareLevel
+                  };
+                }
+              } catch (error) {
+                console.error(`Error fetching notes for patient ${patient.id}:`, error);
+              }
+              
+              return patient;
+            })
+          );
+
+          // Kritik hastaları üste sırala
+          const sortedPatients = patientsWithAlerts.sort((a, b) => {
+            if (a.hasHighPriorityNotes && !b.hasHighPriorityNotes) return -1;
+            if (!a.hasHighPriorityNotes && b.hasHighPriorityNotes) return 1;
+            if (a.maxCareLevel && b.maxCareLevel) {
+              return b.maxCareLevel - a.maxCareLevel;
+            }
+            return 0;
+          });
+
+          setPatients(sortedPatients);
+        } else {
+          setPatients(data);
+        }
       } catch (error) {
         console.error('Error fetching patients:', error);
       }
@@ -47,7 +96,7 @@ export default function PatientDrawerPanel({
     }
   }, [visible]);
 
-  const handlePatientSelect = async (patient: { id: number; first_name: string; last_name: string }) => {
+  const handlePatientSelect = async (patient: PatientWithAlert) => {
     try {
       const role = await AsyncStorage.getItem('role');
       
@@ -103,10 +152,26 @@ export default function PatientDrawerPanel({
             patients.map((p) => (
               <TouchableOpacity 
                 key={p.id} 
-                style={styles.patientBox}
+                style={[
+                  styles.patientBox,
+                  p.hasHighPriorityNotes ? styles.criticalPatientBox : null
+                ]}
                 onPress={() => handlePatientSelect(p)}
               >
-                <Text style={styles.name}>{p.first_name} {p.last_name}</Text>
+                <View style={styles.patientRow}>
+                  <Text style={styles.name}>{p.first_name} {p.last_name}</Text>
+                  {p.hasHighPriorityNotes && (
+                    <View style={styles.alertContainer}>
+                      <Ionicons 
+                        name="warning" 
+                        size={18} 
+                        color="#e74c3c" 
+                        style={styles.warningIcon}
+                      />
+                      <Text style={styles.careLevel}>Level {p.maxCareLevel}</Text>
+                    </View>
+                  )}
+                </View>
               </TouchableOpacity>
             ))
           ) : (
@@ -151,9 +216,37 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderRadius: 8,
   },
+  criticalPatientBox: {
+    backgroundColor: '#ffe6e6',
+    borderLeftWidth: 4,
+    borderLeftColor: '#e74c3c',
+  },
+  patientRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   name: {
     fontWeight: 'bold',
     fontSize: 16,
+    flex: 1,
+  },
+  alertContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e74c3c',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  warningIcon: {
+    marginRight: 4,
+    color: '#fff',
+  },
+  careLevel: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   closeBtn: {
     backgroundColor: '#3498db',
