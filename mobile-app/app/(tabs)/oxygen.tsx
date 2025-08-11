@@ -50,9 +50,6 @@ export default function OxygenLevelScreen() {
 };
 
 
-  const handleGoBack = () => {
-    router.push('../PatientSelectScreen');
-  };
 
   const handleLogout = async () => {
     await AsyncStorage.clear();
@@ -232,14 +229,6 @@ export default function OxygenLevelScreen() {
           <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
         )}
       </ScrollView>
-      <View style={{ marginTop: 20 }}>
-        <TouchableOpacity
-          onPress={handleGoBack}
-          style={{ backgroundColor: '#ccc', padding: 10, borderRadius: 50, marginBottom: 10, width: 100, alignSelf: 'center' }}
-        >
-          <Text style={{ textAlign: 'center', color: '#000' }}>← Go Back</Text>
-        </TouchableOpacity>
-      </View>
     </PageWithNavbar>
   );
 }

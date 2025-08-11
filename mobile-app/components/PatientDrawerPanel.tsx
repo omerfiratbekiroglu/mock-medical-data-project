@@ -120,6 +120,11 @@ export default function PatientDrawerPanel({
     }
   };
 
+  const handleGoBack = () => {
+    router.push('/PatientSelectScreen');
+    onClose();
+  };
+
   const handleLogout = async () => {
     try {
       await AsyncStorage.clear();
@@ -180,6 +185,13 @@ export default function PatientDrawerPanel({
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
             <Text style={{ color: '#fff' }}>Close</Text>
           </TouchableOpacity>
+          
+          {(userRole === 'doctor' || userRole === 'caregiver') && (
+            <TouchableOpacity style={styles.patientSelectButton} onPress={handleGoBack}>
+              <Text style={styles.patientSelectText}>Patient Select Page</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
@@ -247,6 +259,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  patientSelectButton: {
+    marginTop: 20,
+    backgroundColor: '#27ae60',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  patientSelectText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   closeBtn: {
     backgroundColor: '#3498db',
