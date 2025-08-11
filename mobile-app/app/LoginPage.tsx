@@ -40,6 +40,7 @@ export default function LoginPage() {
 
         if( result.role === 'patient') {
               await AsyncStorage.setItem('selectedPatientId', result.user_id.toString());
+              router.replace('../(tabs)/logs');
         }
         else if (result.role === 'doctor' || result.role === 'caregiver') {
           router.replace('../PatientSelectScreen');
