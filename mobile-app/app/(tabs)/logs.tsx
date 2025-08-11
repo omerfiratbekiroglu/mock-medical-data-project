@@ -80,40 +80,64 @@ export default function LogsScreen() {
       if (!selectedPatientId) return;
 
       try {
-        const res = await fetch(`${API_BASE_URL}/read_encrypted?limit=1`);
+        // Daha fazla veri al ki tüm hasta verilerini yakalayabilelim
+        const res = await fetch(`${API_BASE_URL}/read_encrypted?limit=10`);
         const data = await res.json();
+        
         if (Array.isArray(data) && data.length > 0) {
-          const row = data[0];
+          const newVitals = [];
+          
+          // Tüm verileri kontrol et
+          for (const row of data) {
+            // Zaten işlediğimiz bir zaman değilse
+            if (row.time > (lastTimeRef.current || '')) {
+              try {
+                const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ encrypted_data: row.encrypted_data })
+                });
 
-          if (row.time !== lastTimeRef.current) {
-
-            lastTimeRef.current = row.time;
-
-            const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ encrypted_data: row.encrypted_data })
-            });
-
-            const decryptData = await decryptRes.json();
-            if (decryptData.decrypted_data) {
-              const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
-              const vitals = JSON.parse(cleaned);
-              vitals.time = row.time;
-              console.log("patient id:", vitals.patient_id, "selectedPatientId:", selectedPatientId)
-              if (vitals.patient_id === selectedPatientId) {
-                if (isMounted) {
-                  setLogs(prev => [vitals, ...prev].slice(0, 10));
+                const decryptData = await decryptRes.json();
+                if (decryptData.decrypted_data) {
+                  const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
+                  const vitals = JSON.parse(cleaned);
+                  vitals.time = row.time;
+                  
+                  // Bu hasta için olan veriyi ekle
+                  if (vitals.patient_id === selectedPatientId) {
+                    newVitals.push(vitals);
+                  }
                 }
+              } catch (err) {
+                console.log('Decryption failed:', err);
               }
             }
           }
+          
+          // Yeni veriler varsa ekle
+          if (newVitals.length > 0 && isMounted) {
+            // Zamana göre sırala (en yeni önce)
+            newVitals.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+            
+            setLogs(prev => {
+              const combined = [...newVitals, ...prev];
+              // Duplikatları kaldır ve en fazla 20 kayıt tut
+              const uniqueByTime = combined.filter((item, index, self) => 
+                index === self.findIndex(t => t.time === item.time)
+              );
+              return uniqueByTime.slice(0, 20);
+            });
+            
+            // Son zamanı güncelle
+            lastTimeRef.current = data[0].time;
+          }
         }
       } catch (e) {
-        // ignore polling errors
+        console.log('Polling error:', e);
       }
 
-      if (isMounted) setTimeout(poll, 500);
+      if (isMounted) setTimeout(poll, 1000); // 1 saniye olarak artırdım
     };
 
     poll();
