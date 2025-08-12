@@ -150,7 +150,7 @@ export default function LogsScreen() {
       <View style={styles.container}>
       <Text style={styles.title}>Vitals for {patientId || '...'}</Text>
       {loading ? (
-        <ActivityIndicator size="large" color="#2a3b4c" style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color="#2a3b4c" style={styles.loading} />
       ) : (
         <ScrollView horizontal>
           <View>
@@ -161,7 +161,7 @@ export default function LogsScreen() {
               <Text style={[styles.cell, styles.headerCell]}>Oxygen Level</Text>
               <Text style={[styles.cell, styles.headerCell]}>Temperature</Text>
             </View>
-            <ScrollView style={{ maxHeight: 320 }}>
+            <ScrollView style={styles.scrollContainer}>
               {logs.map((row, idx) => (
                 <View
                   key={idx}
@@ -225,5 +225,11 @@ const styles = StyleSheet.create({
   },
   newRow: {
     backgroundColor: '#d1ffd6',
+  },
+  loading: {
+    marginTop: 40,
+  },
+  scrollContainer: {
+    maxHeight: 320,
   },
 });
