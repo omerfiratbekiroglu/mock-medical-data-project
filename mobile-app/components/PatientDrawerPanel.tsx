@@ -143,7 +143,7 @@ export default function PatientDrawerPanel({
         <>
           <Text style={styles.title}>Menu</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Text style={{ color: '#fff' }}>Close</Text>
+            <Text style={{ color: '#ffffffff' }}>Close</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>Logout</Text>
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   patientSelectButton: {
-    marginTop: 20,
+    marginTop: 8,
     backgroundColor: '#27ae60',
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -270,7 +270,6 @@ const styles = StyleSheet.create({
   },
   patientSelectText: {
     color: '#fff',
-    fontWeight: 'bold',
     fontSize: 16,
   },
   closeBtn: {
@@ -279,9 +278,10 @@ const styles = StyleSheet.create({
     marginTop: 300,
     alignItems: 'center',
     borderRadius: 5,
+    
   },
   logoutButton: {
-    marginTop: 20,
+    marginTop: 8,
     backgroundColor: '#e74c3c',
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -290,7 +290,6 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: '#fff',
-    fontWeight: 'bold',
     fontSize: 16,
   },
 });

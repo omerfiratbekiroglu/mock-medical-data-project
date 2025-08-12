@@ -144,6 +144,6 @@ if __name__ == "__main__":
     try:
         asyncio.run(initialize_seq_counters())
         asyncio.run(get_patient_ids())
-        asyncio.run(run_generator(period=2.0))  # Her 2 saniyede tüm hastalar için veri generate et
+        asyncio.run(run_generator(period=1.0))  # Her 2 saniyede tüm hastalar için veri generate et
     except KeyboardInterrupt:
         print("Stopped generator.")
