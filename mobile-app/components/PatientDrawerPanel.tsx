@@ -143,7 +143,7 @@ export default function PatientDrawerPanel({
         <>
           <Text style={styles.title}>Menu</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Text style={{ color: '#ffffffff' }}>Close</Text>
+            <Text style={styles.closeText}>Close</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>Logout</Text>
@@ -180,10 +180,10 @@ export default function PatientDrawerPanel({
               </TouchableOpacity>
             ))
           ) : (
-            <Text style={{ fontStyle: 'italic', color: '#555' }}>No patient data.</Text>
+            <Text style={styles.noDataText}>No patient data.</Text>
           )}
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Text style={{ color: '#fff' }}>Close</Text>
+            <Text style={styles.closeText}>Close</Text>
           </TouchableOpacity>
           
           {(userRole === 'doctor' || userRole === 'caregiver') && (
@@ -291,5 +291,12 @@ const styles = StyleSheet.create({
   logoutText: {
     color: '#fff',
     fontSize: 16,
+  },
+  closeText: {
+    color: '#fff',
+  },
+  noDataText: {
+    fontStyle: 'italic',
+    color: '#555',
   },
 });
