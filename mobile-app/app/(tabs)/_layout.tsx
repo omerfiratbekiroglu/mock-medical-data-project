@@ -16,6 +16,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
@@ -24,48 +25,50 @@ export default function TabLayout() {
             // Use a transparent background on iOS to show the blur effect
             position: 'absolute',
           },
-          default: {},
+          default: {
+            backgroundColor: '#FFFFFF',
+            borderTopColor: '#E5E7EB',
+            borderTopWidth: 1,
+            paddingTop: 8,
+            paddingBottom: 8,
+            height: 65,
+          },
         }),
       }}>
        <Tabs.Screen
-        name="(tabs)/logs"
+        name="logs"
         options={{
           title: 'Logs',
-          tabBarIcon: ({ color, size }) => <Ionicons name="list" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="list-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="(tabs)/heartrate"
+        name="heartrate"
         options={{
           title: 'Heart Rate',
-          tabBarIcon: ({ color, size }) => <Ionicons name="heart" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="heart-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="(tabs)/oxygen"
+        name="oxygen"
         options={{
           title: 'Oxygen',
-          tabBarIcon: ({ color, size }) => <Ionicons name="water" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="water-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="(tabs)/temperature"
+        name="temprature"
         options={{
           title: 'Temperature',
-          tabBarIcon: ({ color, size }) => <Ionicons name="thermometer" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="thermometer-outline" color={color} size={size} />,
         }}
-        
-       
       />
-
-       <Tabs.Screen
-        name="(tabs)/patient_update"
+      <Tabs.Screen
+        name="patient_update"
         options={{
-          title: 'Temperature',
-          tabBarIcon: ({ color, size }) => <Ionicons name="thermometer" color={color} size={size} />,
+          title: 'Update',
+          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" color={color} size={size} />,
         }}
-        
-       
       />
     </Tabs>
  
