@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import API_BASE_URL from '../config';
 import { useRouter } from 'expo-router';
@@ -48,7 +48,7 @@ useEffect(() => {
     <View style={styles.container}>
       <Text style={styles.title}>Select a Patient</Text>
       {loading ? (
-        <Text>Loading...</Text>
+        <ActivityIndicator size="large" color="#10B981" style={styles.loading} />
       ) : (
         <ScrollView style={styles.scrollView}>
           {patients.map((patient, index) => (
@@ -56,8 +56,9 @@ useEffect(() => {
               key={index}
               style={styles.patientButton}
               onPress={() => handleSelectPatient(patient)}
+              activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>{patient.first_name}{patient.last_name}</Text>
+              <Text style={styles.buttonText}>{patient.first_name} {patient.last_name}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -69,28 +70,42 @@ useEffect(() => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-    backgroundColor: '#f9f9f9',
+    padding: 24,
+    backgroundColor: '#F8FAFC',
     alignItems: 'center',
   },
   title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#2a3b4c',
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 32,
+    marginTop: 40,
+    color: '#1F2937',
+    letterSpacing: -0.5,
   },
   scrollView: {
     width: '100%',
+    maxWidth: 400,
   },
   patientButton: {
-    backgroundColor: '#2980b9',
-    padding: 14,
+    backgroundColor: '#FFFFFF',
+    padding: 20,
     marginVertical: 8,
-    borderRadius: 8,
+    borderRadius: 16,
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#374151',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  loading: {
+    marginTop: 60,
   },
 });

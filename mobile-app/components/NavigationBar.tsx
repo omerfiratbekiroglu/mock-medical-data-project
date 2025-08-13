@@ -21,7 +21,7 @@ export default function NavigationBar({ onMenuPress }: NavigationBarProps) {
 
 const styles = StyleSheet.create({
   safeArea: {
-    backgroundColor: '#2980b9',
+    backgroundColor: '#10B981',
     ...Platform.select({
       android: {
         paddingTop: 0,
@@ -29,21 +29,32 @@ const styles = StyleSheet.create({
     }),
   },
   navbar: {
-    height: 50,
+    height: 56,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#2980b9',
-    paddingHorizontal: 15,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 8,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
   },
   menuButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
 });

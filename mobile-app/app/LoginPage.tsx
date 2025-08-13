@@ -84,10 +84,56 @@ export default function LoginPage() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20 },
-  header: { fontSize: 24, fontWeight: 'bold', marginBottom: 30, textAlign: 'center' },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 12, marginBottom: 15, borderRadius: 8 },
-  button: { backgroundColor: '#007bff', padding: 15, borderRadius: 8 },
-  buttonText: { color: 'white', textAlign: 'center', fontWeight: 'bold' },
-  link: { marginTop: 15, textAlign: 'center', color: '#555' },
+  container: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    padding: 24,
+    backgroundColor: '#F8FAFC'
+  },
+  header: { 
+    fontSize: 32, 
+    fontWeight: '700', 
+    marginBottom: 48, 
+    textAlign: 'center',
+    color: '#1F2937',
+    letterSpacing: -0.5
+  },
+  input: { 
+    borderWidth: 1.5, 
+    borderColor: '#E5E7EB', 
+    padding: 16, 
+    marginBottom: 20, 
+    borderRadius: 12,
+    fontSize: 16,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  button: { 
+    backgroundColor: '#10B981', 
+    padding: 18, 
+    borderRadius: 12,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4
+  },
+  buttonText: { 
+    color: 'white', 
+    textAlign: 'center', 
+    fontWeight: '600',
+    fontSize: 16,
+    letterSpacing: 0.5
+  },
+  link: { 
+    marginTop: 20, 
+    textAlign: 'center', 
+    color: '#6B7280',
+    fontSize: 16,
+    fontWeight: '500'
+  },
 });
