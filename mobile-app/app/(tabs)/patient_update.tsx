@@ -120,6 +120,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f7f9fc',
     padding: 20,
+    paddingTop: 60,
   },
   header: {
     fontSize: 24,
