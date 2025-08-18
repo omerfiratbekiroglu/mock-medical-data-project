@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Dimensions, StyleSheet, TouchableOpacity, Modal, Alert, Vibration } from 'react-native';
+import { View, Text, Dimensions, StyleSheet, TouchableOpacity, Modal, Vibration } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import API_BASE_URL from '../../config';
 import PageWithNavbar from '../../components/PageWithNavbar';
@@ -38,34 +38,29 @@ export default function HeartRateScreen() {
   const lastTimeRef = useRef<string | null>(null);
   const alertShownRef = useRef<boolean>(false);
 
-  const checkCriticalHeartRate = (heartRate: number) => {
+  const hideAlert = () => {
+    setShowCriticalAlert(false);
+    setTimeout(() => {
+      alertShownRef.current = false;
+    }, 5000);
+  };
+
+  const showAlert = React.useCallback(() => {
+    setShowCriticalAlert(true);
+    setTimeout(hideAlert, 5000);
+  }, []);
+
+  const checkCriticalHeartRate = React.useCallback((heartRate: number) => {
     console.log(`Heart Rate: ${heartRate}, Threshold: ${CRITICAL_HEART_RATE_THRESHOLD}, Alert Shown: ${alertShownRef.current}`);
     if (heartRate < CRITICAL_HEART_RATE_THRESHOLD && !alertShownRef.current) {
       alertShownRef.current = true;
       setCurrentHeartRate(heartRate);
-      setShowCriticalAlert(true);
       Vibration.vibrate([0, 500, 200, 500, 200, 500]);
-      
-      Alert.alert(
-        "🚨 KRİTİK UYARI",
-        `Kalp atış hızı kritik seviyeye düştü!\nMevcut: ${heartRate} bpm\nKritik eşik: ${CRITICAL_HEART_RATE_THRESHOLD} bpm\n\nAcilen tıbbi yardım alın!`,
-        [
-          {
-            text: "TAMAM",
-            onPress: () => {
-              setTimeout(() => {
-                alertShownRef.current = false;
-              }, 10000);
-            },
-            style: "default"
-          }
-        ],
-        { cancelable: false }
-      );
+      showAlert();
     } else if (heartRate >= CRITICAL_HEART_RATE_THRESHOLD) {
       alertShownRef.current = false;
     }
-  };
+  }, [showAlert]);
 
   useEffect(() => {
     let isMounted = true;
@@ -96,7 +91,7 @@ export default function HeartRateScreen() {
                 checkCriticalHeartRate(hr);
               }
             }
-          } catch (err) {
+          } catch {
             console.log('Initial parse error:', decData?.decrypted_data);
           }
         }
@@ -113,7 +108,7 @@ export default function HeartRateScreen() {
 
     loadInitial();
     return () => { isMounted = false; };
-  }, []);
+  }, [checkCriticalHeartRate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -144,7 +139,7 @@ export default function HeartRateScreen() {
                 setLabels(prev => [...prev.slice(-9), timeLabel]);
               }
             }
-          } catch (err) {
+          } catch {
             console.log('Poll parse error:', decData?.decrypted_data);
           }
         }
@@ -157,7 +152,7 @@ export default function HeartRateScreen() {
 
     poll();
     return () => { isMounted = false; };
-  }, []);
+  }, [checkCriticalHeartRate]);
 
   return (
     <PageWithNavbar>
@@ -204,12 +199,11 @@ export default function HeartRateScreen() {
           visible={showCriticalAlert}
           animationType="slide"
           transparent={true}
-          onRequestClose={() => setShowCriticalAlert(false)}
+          onRequestClose={hideAlert}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.alertContainer}>
-              <Text style={styles.alertIcon}>🚨</Text>
-              <Text style={styles.alertTitle}>KRİTİK UYARI!</Text>
+              <Text style={styles.alertTitle}>KRİTİK UYARI</Text>
               <Text style={styles.alertMessage}>
                 Kalp atış hızı kritik seviyeye düştü!
               </Text>
@@ -222,17 +216,6 @@ export default function HeartRateScreen() {
               <Text style={styles.alertAction}>
                 Acilen tıbbi yardım alın!
               </Text>
-              <TouchableOpacity 
-                style={styles.alertButton}
-                onPress={() => {
-                  setShowCriticalAlert(false);
-                  setTimeout(() => {
-                    alertShownRef.current = false;
-                  }, 10000);
-                }}
-              >
-                <Text style={styles.alertButtonText}>TAMAM</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -270,70 +253,70 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   alertContainer: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 30,
+    borderRadius: 15,
+    padding: 25,
     margin: 20,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-    borderWidth: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
+    borderWidth: 2,
     borderColor: '#e74c3c',
   },
   alertIcon: {
-    fontSize: 60,
-    marginBottom: 10,
+    fontSize: 50,
+    marginBottom: 15,
   },
   alertTitle: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#e74c3c',
     marginBottom: 15,
     textAlign: 'center',
   },
   alertMessage: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#2a3b4c',
     marginBottom: 15,
     textAlign: 'center',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   alertDetails: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#34495e',
     marginBottom: 8,
     textAlign: 'center',
   },
   alertAction: {
-    fontSize: 20,
+    fontSize: 16,
     color: '#e74c3c',
-    marginTop: 15,
-    marginBottom: 25,
+    marginTop: 10,
+    marginBottom: 20,
     textAlign: 'center',
     fontWeight: 'bold',
   },
   alertButton: {
     backgroundColor: '#e74c3c',
-    paddingVertical: 15,
-    paddingHorizontal: 40,
-    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   alertButtonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
   },
