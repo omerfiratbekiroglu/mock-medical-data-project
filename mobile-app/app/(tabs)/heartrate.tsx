@@ -216,6 +216,9 @@ export default function HeartRateScreen() {
               <Text style={styles.alertAction}>
                 Acilen tıbbi yardım alın!
               </Text>
+              <TouchableOpacity style={styles.alertButton} onPress={hideAlert}>
+                <Text style={styles.alertButtonText}>Kapat</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
