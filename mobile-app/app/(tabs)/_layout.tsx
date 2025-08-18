@@ -1,16 +1,43 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Platform, ActivityIndicator, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const [role, setRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const r = await AsyncStorage.getItem('role');
+        console.log('ROLE:', r);
+        if (mounted) setRole(r);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // İstersen kısa bir loading gösterebilirsin
+  if (loading) {
+    return (
+      <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  const isCaregiver = role === 'caregiver';
 
   return (
     <Tabs
@@ -21,10 +48,7 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
-          ios: {
-            // Use a transparent background on iOS to show the blur effect
-            position: 'absolute',
-          },
+          ios: { position: 'absolute' },
           default: {
             backgroundColor: '#FFFFFF',
             borderTopColor: '#E5E7EB',
@@ -34,8 +58,9 @@ export default function TabLayout() {
             height: 65,
           },
         }),
-      }}>
-       <Tabs.Screen
+      }}
+    >
+      <Tabs.Screen
         name="logs"
         options={{
           title: 'Logs',
@@ -63,14 +88,16 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="thermometer-outline" color={color} size={size} />,
         }}
       />
+
       <Tabs.Screen
         name="patient_update"
         options={{
           title: 'Update',
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" color={color} size={size} />,
+          href: isCaregiver ? '/patient_update' : null,
+          tabBarStyle: isCaregiver ? undefined : { display: 'none' },
         }}
       />
     </Tabs>
- 
   );
 }
