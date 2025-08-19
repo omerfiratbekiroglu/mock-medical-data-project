@@ -63,4 +63,26 @@ ON CONFLICT (email) DO UPDATE SET
   CREATE INDEX IF NOT EXISTS idx_caregiver_notes_care_level ON caregiver_notes(care_level);
   CREATE INDEX IF NOT EXISTS idx_caregiver_notes_created_at ON caregiver_notes(created_at DESC);
 
+-- Critical alerts table for heart rate notifications
+CREATE TABLE IF NOT EXISTS critical_alerts (
+    id SERIAL PRIMARY KEY,
+    patient_id INTEGER NOT NULL,
+    caregiver_id INTEGER NOT NULL,
+    alert_type VARCHAR(50) NOT NULL DEFAULT 'critical_heart_rate',
+    heart_rate INTEGER NOT NULL,
+    threshold_value INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
+
+    FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (caregiver_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Index for performance
+CREATE INDEX IF NOT EXISTS idx_critical_alerts_caregiver_id ON critical_alerts(caregiver_id);
+CREATE INDEX IF NOT EXISTS idx_critical_alerts_patient_id ON critical_alerts(patient_id);
+CREATE INDEX IF NOT EXISTS idx_critical_alerts_is_read ON critical_alerts(is_read);
+CREATE INDEX IF NOT EXISTS idx_critical_alerts_created_at ON critical_alerts(created_at DESC);
+
 

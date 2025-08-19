@@ -621,3 +621,112 @@ async def get_doctor_patients_notes(user_id: int, role: str, limit: int = 100):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Critical Alert Models
+class CriticalAlertInput(BaseModel):
+    patient_id: int
+    heart_rate: int
+    threshold_value: int
+    message: str
+
+@app.post("/critical_alert")
+async def send_critical_alert(alert_data: CriticalAlertInput):
+    """Critical heart rate alert'ini hasta bakıcılara gönder"""
+    try:
+        # Hastaya atanmış caregiver'ları bul
+        caregiver_query = """
+            SELECT id FROM users 
+            WHERE role = 'caregiver' 
+            AND (assigned_patients IS NULL OR assigned_patients LIKE :patient_search)
+        """
+        patient_search = f"%{alert_data.patient_id}%"
+        caregivers = await database.fetch_all(caregiver_query, {"patient_search": patient_search})
+        
+        if not caregivers:
+            raise HTTPException(status_code=404, detail="No caregivers found for this patient")
+        
+        # Her caregiver'a alert gönder
+        for caregiver in caregivers:
+            alert_query = """
+                INSERT INTO critical_alerts 
+                (patient_id, caregiver_id, alert_type, heart_rate, threshold_value, message, is_read, created_at)
+                VALUES (:patient_id, :caregiver_id, 'critical_heart_rate', :heart_rate, :threshold_value, :message, false, NOW())
+            """
+            await database.execute(alert_query, {
+                "patient_id": alert_data.patient_id,
+                "caregiver_id": caregiver["id"],
+                "heart_rate": alert_data.heart_rate,
+                "threshold_value": alert_data.threshold_value,
+                "message": alert_data.message
+            })
+        
+        return {
+            "success": True,
+            "message": f"Critical alert sent to {len(caregivers)} caregiver(s)",
+            "caregivers_notified": len(caregivers)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/critical_alerts")
+async def get_critical_alerts(caregiver_id: int, role: str, unread_only: bool = False):
+    """Caregiver'ın critical alert'lerini getir"""
+    if role != 'caregiver':
+        raise HTTPException(status_code=403, detail="Only caregivers can view alerts")
+    
+    try:
+        where_clause = "WHERE ca.caregiver_id = :caregiver_id"
+        if unread_only:
+            where_clause += " AND ca.is_read = false"
+            
+        query = f"""
+            SELECT 
+                ca.id, ca.patient_id, ca.alert_type, ca.heart_rate, ca.threshold_value,
+                ca.message, ca.is_read, ca.created_at,
+                CONCAT(u.first_name, ' ', u.last_name) as patient_name,
+                u.email as patient_email
+            FROM critical_alerts ca
+            JOIN users u ON ca.patient_id = u.id
+            {where_clause}
+            ORDER BY ca.created_at DESC
+            LIMIT 50
+        """
+        
+        alerts = await database.fetch_all(query, {"caregiver_id": caregiver_id})
+        
+        return {
+            "success": True,
+            "alerts": [dict(alert) for alert in alerts],
+            "total_alerts": len(alerts)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/critical_alerts/{alert_id}/mark_read")
+async def mark_alert_as_read(alert_id: int, caregiver_id: int, role: str):
+    """Critical alert'i okundu olarak işaretle"""
+    if role != 'caregiver':
+        raise HTTPException(status_code=403, detail="Only caregivers can mark alerts as read")
+    
+    try:
+        # Önce alert'in bu caregiver'a ait olduğunu kontrol et
+        check_query = "SELECT id FROM critical_alerts WHERE id = :alert_id AND caregiver_id = :caregiver_id"
+        alert = await database.fetch_one(check_query, {"alert_id": alert_id, "caregiver_id": caregiver_id})
+        
+        if not alert:
+            raise HTTPException(status_code=404, detail="Alert not found or unauthorized")
+        
+        # Alert'i okundu olarak işaretle
+        update_query = """
+            UPDATE critical_alerts 
+            SET is_read = true 
+            WHERE id = :alert_id AND caregiver_id = :caregiver_id
+        """
+        await database.execute(update_query, {"alert_id": alert_id, "caregiver_id": caregiver_id})
+        
+        return {"success": True, "message": "Alert marked as read"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -3,6 +3,7 @@ import { View, Text, Dimensions, StyleSheet, TouchableOpacity, Modal, Vibration 
 import { LineChart } from 'react-native-chart-kit';
 import API_BASE_URL from '../../config';
 import PageWithNavbar from '../../components/PageWithNavbar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const chartWidth = Dimensions.get('window').width - 20;
 const chartHeight = 220;
@@ -45,6 +46,38 @@ export default function HeartRateScreen() {
     }, 5000);
   };
 
+  const sendCriticalAlertToCaregiver = async (heartRate: number) => {
+    try {
+      const patientId = await AsyncStorage.getItem('selectedPatientId');
+      if (!patientId) {
+        console.log('Patient ID not found, cannot send alert');
+        return;
+      }
+
+      const alertData = {
+        patient_id: parseInt(patientId),
+        heart_rate: heartRate,
+        threshold_value: CRITICAL_HEART_RATE_THRESHOLD,
+        message: `Hasta ${patientId} kritik kalp atışı seviyesinde! Kalp atışı: ${heartRate} BPM, Eşik: ${CRITICAL_HEART_RATE_THRESHOLD} BPM`
+      };
+
+      const response = await fetch(`${API_BASE_URL}/critical_alert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(alertData),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        console.log(`Critical alert sent to ${result.caregivers_notified} caregiver(s)`);
+      } else {
+        console.log('Failed to send critical alert:', result);
+      }
+    } catch (error) {
+      console.log('Error sending critical alert:', error);
+    }
+  };
+
   const showAlert = React.useCallback(() => {
     setShowCriticalAlert(true);
     setTimeout(hideAlert, 5000);
@@ -57,6 +90,8 @@ export default function HeartRateScreen() {
       setCurrentHeartRate(heartRate);
       Vibration.vibrate([0, 500, 200, 500, 200, 500]);
       showAlert();
+      // Caregiver'a critical alert gönder
+      sendCriticalAlertToCaregiver(heartRate);
     } else if (heartRate >= CRITICAL_HEART_RATE_THRESHOLD) {
       alertShownRef.current = false;
     }
