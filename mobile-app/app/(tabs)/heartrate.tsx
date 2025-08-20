@@ -41,9 +41,7 @@ export default function HeartRateScreen() {
 
   const hideAlert = () => {
     setShowCriticalAlert(false);
-    setTimeout(() => {
-      alertShownRef.current = false;
-    }, 5000);
+    alertShownRef.current = false;
   };
 
   const sendCriticalAlertToCaregiver = async (heartRate: number) => {
@@ -80,7 +78,10 @@ export default function HeartRateScreen() {
 
   const showAlert = React.useCallback(() => {
     setShowCriticalAlert(true);
-    setTimeout(hideAlert, 5000);
+    alertShownRef.current = true;
+    setTimeout(() => {
+      hideAlert();
+    }, 10000);
   }, []);
 
   const checkCriticalHeartRate = React.useCallback((heartRate: number) => {
@@ -234,7 +235,7 @@ export default function HeartRateScreen() {
           visible={showCriticalAlert}
           animationType="slide"
           transparent={true}
-          onRequestClose={hideAlert}
+          onRequestClose={() => {}}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.alertContainer}>
@@ -251,9 +252,6 @@ export default function HeartRateScreen() {
               <Text style={styles.alertAction}>
                 Acilen tıbbi yardım alın!
               </Text>
-              <TouchableOpacity style={styles.alertButton} onPress={hideAlert}>
-                <Text style={styles.alertButtonText}>Kapat</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -340,22 +338,5 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
     fontWeight: 'bold',
-  },
-  alertButton: {
-    backgroundColor: '#e74c3c',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  alertButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
   },
 });
