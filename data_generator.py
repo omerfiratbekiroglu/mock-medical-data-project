@@ -134,8 +134,10 @@ async def run_generator(period=1.0):
                 packet_dict, padded_bytes = generate_random_vitals_for_patient(patient_id)
                 await send_vitals(session, packet_dict, padded_bytes)
                 elapsed = time.time() - start
-                print(f"Patient {patient_id} - Generated vitals: HR={packet_dict['heart_rate']}, O2={packet_dict['oxygen_level']}, Temp={packet_dict['temp']}")
-                print(f"Sent seq_no={packet_dict['seq_no']} uuid={packet_dict['uuid']} ({elapsed:.2f}s)")
+                if(patient_id == "2"):
+                    print(f"Patient {patient_id} - Generated vitals: HR={packet_dict['heart_rate']}, O2={packet_dict['oxygen_level']}, Temp={packet_dict['temp']}")
+                    print(f"Sent seq_no={packet_dict['seq_no']} uuid={packet_dict['uuid']} ({elapsed:.2f}s)")
+
             
             # Period kadar bekle
             await asyncio.sleep(period)

@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const chartWidth = Dimensions.get('window').width - 20;
 const chartHeight = 220;
 
-const CRITICAL_HEART_RATE_THRESHOLD = 90;
+const CRITICAL_HEART_RATE_THRESHOLD = 85;
 
 const chartConfig = {
   backgroundColor: '#fff',
@@ -38,6 +38,15 @@ export default function HeartRateScreen() {
   const [currentHeartRate, setCurrentHeartRate] = useState<number | null>(null);
   const lastTimeRef = useRef<string | null>(null);
   const alertShownRef = useRef<boolean>(false);
+  const [role, setRole] = useState<string | null>(null);  
+  const isCaregiver = (role ?? '').toLowerCase() === 'caregiver';
+
+  useEffect(() => {
+    AsyncStorage.getItem('role')
+      .then(setRole)
+      .catch(() => setRole(null));
+  }, []);
+  
 
   const hideAlert = () => {
     setShowCriticalAlert(false);
@@ -77,26 +86,33 @@ export default function HeartRateScreen() {
   };
 
   const showAlert = React.useCallback(() => {
+    if (!isCaregiver) return; // caregiver değilse modal açma
     setShowCriticalAlert(true);
     alertShownRef.current = true;
     setTimeout(() => {
       hideAlert();
     }, 10000);
-  }, []);
+  }, [isCaregiver]);
 
-  const checkCriticalHeartRate = React.useCallback((heartRate: number) => {
-    console.log(`Heart Rate: ${heartRate}, Threshold: ${CRITICAL_HEART_RATE_THRESHOLD}, Alert Shown: ${alertShownRef.current}`);
-    if (heartRate < CRITICAL_HEART_RATE_THRESHOLD && !alertShownRef.current) {
-      alertShownRef.current = true;
-      setCurrentHeartRate(heartRate);
+const checkCriticalHeartRate = React.useCallback((heartRate: number) => {
+  console.log(`Heart Rate: ${heartRate}, Threshold: ${CRITICAL_HEART_RATE_THRESHOLD}, Alert Shown: ${alertShownRef.current}`);
+  if (heartRate < CRITICAL_HEART_RATE_THRESHOLD && !alertShownRef.current) {
+    alertShownRef.current = true;
+    setCurrentHeartRate(heartRate);
+
+    // Sadece caregiver için cihaz üzerinde uyarı
+    if (isCaregiver) {
       Vibration.vibrate([0, 500, 200, 500, 200, 500]);
       showAlert();
-      // Caregiver'a critical alert gönder
-      sendCriticalAlertToCaregiver(heartRate);
-    } else if (heartRate >= CRITICAL_HEART_RATE_THRESHOLD) {
-      alertShownRef.current = false;
     }
-  }, [showAlert]);
+
+    // Caregiver'lara sunucu üzerinden kritik uyarı gönder (rol fark etmeksizin)
+    sendCriticalAlertToCaregiver(heartRate);
+  } else if (heartRate >= CRITICAL_HEART_RATE_THRESHOLD) {
+    alertShownRef.current = false;
+  }
+}, [isCaregiver, showAlert]);
+
 
   useEffect(() => {
     let isMounted = true;
@@ -232,7 +248,7 @@ export default function HeartRateScreen() {
         )}
 
         <Modal
-          visible={showCriticalAlert}
+          visible={showCriticalAlert && isCaregiver}
           animationType="slide"
           transparent={true}
           onRequestClose={() => {}}
