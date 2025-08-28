@@ -38,19 +38,27 @@ export default function HeartRateScreen() {
   const [currentHeartRate, setCurrentHeartRate] = useState<number | null>(null);
   const lastTimeRef = useRef<string | null>(null);
   const alertShownRef = useRef<boolean>(false);
-  const [role, setRole] = useState<string | null>(null);  
+  const [role, setRole] = useState<string | null>(null);
   const isCaregiver = (role ?? '').toLowerCase() === 'caregiver';
+
+  // --- NEW: single-timer + cooldown refs
+  const alertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nextAlertAllowedAtRef = useRef<number>(0); // ms timestamp
 
   useEffect(() => {
     AsyncStorage.getItem('role')
       .then(setRole)
       .catch(() => setRole(null));
   }, []);
-  
 
   const hideAlert = () => {
     setShowCriticalAlert(false);
+    // uyarı kapandıktan sonra yeni uyarılara izin ver
     alertShownRef.current = false;
+    if (alertTimeoutRef.current) {
+      clearTimeout(alertTimeoutRef.current);
+      alertTimeoutRef.current = null;
+    }
   };
 
   const sendCriticalAlertToCaregiver = async (heartRate: number) => {
@@ -62,10 +70,10 @@ export default function HeartRateScreen() {
       }
 
       const alertData = {
-        patient_id: parseInt(patientId),
+        patient_id: parseInt(patientId, 10),
         heart_rate: heartRate,
         threshold_value: CRITICAL_HEART_RATE_THRESHOLD,
-        message: `Hasta ${patientId} kritik kalp atışı seviyesinde! Kalp atışı: ${heartRate} BPM, Eşik: ${CRITICAL_HEART_RATE_THRESHOLD} BPM`
+        message: `Hasta ${patientId} kritik kalp atışı seviyesinde! Kalp atışı: ${heartRate} BPM, Eşik: ${CRITICAL_HEART_RATE_THRESHOLD} BPM`,
       };
 
       const response = await fetch(`${API_BASE_URL}/critical_alert`, {
@@ -75,7 +83,7 @@ export default function HeartRateScreen() {
       });
 
       const result = await response.json();
-      if (result.success) {
+      if (result?.success) {
         console.log(`Critical alert sent to ${result.caregivers_notified} caregiver(s)`);
       } else {
         console.log('Failed to send critical alert:', result);
@@ -86,33 +94,49 @@ export default function HeartRateScreen() {
   };
 
   const showAlert = React.useCallback(() => {
-    if (!isCaregiver) return; // caregiver değilse modal açma
-    setShowCriticalAlert(true);
-    alertShownRef.current = true;
-    setTimeout(() => {
-      hideAlert();
-    }, 10000);
-  }, [isCaregiver]);
+    if (!isCaregiver) return;
 
-const checkCriticalHeartRate = React.useCallback((heartRate: number) => {
-  console.log(`Heart Rate: ${heartRate}, Threshold: ${CRITICAL_HEART_RATE_THRESHOLD}, Alert Shown: ${alertShownRef.current}`);
-  if (heartRate < CRITICAL_HEART_RATE_THRESHOLD && !alertShownRef.current) {
-    alertShownRef.current = true;
-    setCurrentHeartRate(heartRate);
-
-    // Sadece caregiver için cihaz üzerinde uyarı
-    if (isCaregiver) {
-      Vibration.vibrate([0, 500, 200, 500, 200, 500]);
-      showAlert();
+    // varsa önceki zamanlayıcıyı iptal et — tek aktif timer garantisi
+    if (alertTimeoutRef.current) {
+      clearTimeout(alertTimeoutRef.current);
+      alertTimeoutRef.current = null;
     }
 
-    // Caregiver'lara sunucu üzerinden kritik uyarı gönder (rol fark etmeksizin)
-    sendCriticalAlertToCaregiver(heartRate);
-  } else if (heartRate >= CRITICAL_HEART_RATE_THRESHOLD) {
-    alertShownRef.current = false;
-  }
-}, [isCaregiver, showAlert]);
+    setShowCriticalAlert(true);
+    alertShownRef.current = true;
 
+    // 10 sn boyunca yeni uyarı kabul etme (cooldown)
+    nextAlertAllowedAtRef.current = Date.now() + 10_000;
+
+    alertTimeoutRef.current = setTimeout(() => {
+      hideAlert();
+      alertTimeoutRef.current = null;
+    }, 10_000);
+  }, [isCaregiver]);
+
+  const checkCriticalHeartRate = React.useCallback(
+    (heartRate: number) => {
+      const now = Date.now();
+      const inCooldown = now < nextAlertAllowedAtRef.current;
+
+      if (heartRate < CRITICAL_HEART_RATE_THRESHOLD && !alertShownRef.current && !inCooldown) {
+        alertShownRef.current = true;
+        setCurrentHeartRate(heartRate);
+
+        if (isCaregiver) {
+          Vibration.vibrate([0, 500, 200, 500, 200, 500]);
+          showAlert();
+        }
+
+        // caregiver’lara server üzerinden kritik bildirim
+        sendCriticalAlertToCaregiver(heartRate);
+      } else if (heartRate >= CRITICAL_HEART_RATE_THRESHOLD) {
+        // açık uyarıyı burada kapatmıyoruz; 10 sn’lik timer yönetsin.
+        // yeni uyarıya izin verme mantığını hideAlert ve cooldown yönetiyor.
+      }
+    },
+    [isCaregiver, showAlert]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -133,7 +157,7 @@ const checkCriticalHeartRate = React.useCallback((heartRate: number) => {
           });
           const decData = await decRes.json();
           try {
-            const cleaned = decData.decrypted_data.replace(/X+$/, '');
+            const cleaned = String(decData?.decrypted_data ?? '').replace(/X+$/, '');
             const parsed = JSON.parse(cleaned);
             const hr = Number(parsed.heart_rate);
             if (!isNaN(hr) && isFinite(hr)) {
@@ -159,17 +183,25 @@ const checkCriticalHeartRate = React.useCallback((heartRate: number) => {
     }
 
     loadInitial();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+      // unmount temizlik
+      if (alertTimeoutRef.current) {
+        clearTimeout(alertTimeoutRef.current);
+        alertTimeoutRef.current = null;
+      }
+    };
   }, [checkCriticalHeartRate]);
 
   useEffect(() => {
     let isMounted = true;
+    let pollTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const poll = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/read_encrypted?limit=1`);
         const [row] = await res.json();
-        if (row?.time !== lastTimeRef.current) {
+        if (row?.time && row.time !== lastTimeRef.current) {
           lastTimeRef.current = row.time;
 
           const decRes = await fetch(`${API_BASE_URL}/decrypt`, {
@@ -180,15 +212,15 @@ const checkCriticalHeartRate = React.useCallback((heartRate: number) => {
           const decData = await decRes.json();
 
           try {
-            const cleaned = decData.decrypted_data.replace(/X+$/, '');
+            const cleaned = String(decData?.decrypted_data ?? '').replace(/X+$/, '');
             const parsed = JSON.parse(cleaned);
             const hr = Number(parsed.heart_rate);
             if (!isNaN(hr) && isFinite(hr)) {
               const timeLabel = formatLabel(row.time);
               checkCriticalHeartRate(hr);
               if (isMounted) {
-                setData(prev => [...prev.slice(-9), hr]);
-                setLabels(prev => [...prev.slice(-9), timeLabel]);
+                setData((prev) => [...prev.slice(-9), hr]);
+                setLabels((prev) => [...prev.slice(-9), timeLabel]);
               }
             }
           } catch {
@@ -197,13 +229,23 @@ const checkCriticalHeartRate = React.useCallback((heartRate: number) => {
         }
       } catch (e) {
         console.log('Poll fetch error:', e);
+      } finally {
+        if (isMounted) {
+          pollTimeout = setTimeout(poll, 1000);
+        }
       }
-
-      if (isMounted) setTimeout(poll, 1000);
     };
 
     poll();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+      if (pollTimeout) clearTimeout(pollTimeout);
+      // unmount temizlik
+      if (alertTimeoutRef.current) {
+        clearTimeout(alertTimeoutRef.current);
+        alertTimeoutRef.current = null;
+      }
+    };
   }, [checkCriticalHeartRate]);
 
   return (
@@ -256,18 +298,11 @@ const checkCriticalHeartRate = React.useCallback((heartRate: number) => {
           <View style={styles.modalOverlay}>
             <View style={styles.alertContainer}>
               <Text style={styles.alertTitle}>KRİTİK UYARI</Text>
-              <Text style={styles.alertMessage}>
-                Kalp atış hızı kritik seviyeye düştü!
-              </Text>
-              <Text style={styles.alertDetails}>
-                Mevcut: {currentHeartRate} bpm
-              </Text>
-              <Text style={styles.alertDetails}>
-                Kritik eşik: {CRITICAL_HEART_RATE_THRESHOLD} bpm
-              </Text>
-              <Text style={styles.alertAction}>
-                Acilen tıbbi yardım alın!
-              </Text>
+              <Text style={styles.alertMessage}>Kalp atış hızı kritik seviyeye düştü!</Text>
+              <Text style={styles.alertDetails}>Mevcut: {currentHeartRate} bpm</Text>
+              <Text style={styles.alertDetails}>Kritik eşik: {CRITICAL_HEART_RATE_THRESHOLD} bpm</Text>
+              <Text style={styles.alertAction}>Acilen tıbbi yardım alın!</Text>
+             
             </View>
           </View>
         </Modal>
@@ -322,6 +357,7 @@ const styles = StyleSheet.create({
     elevation: 8,
     borderWidth: 2,
     borderColor: '#e74c3c',
+    minWidth: '75%',
   },
   alertIcon: {
     fontSize: 50,
