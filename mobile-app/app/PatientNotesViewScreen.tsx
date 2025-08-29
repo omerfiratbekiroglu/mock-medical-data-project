@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import API_BASE_URL from '../config';
@@ -29,6 +29,13 @@ interface PatientWithNotes {
   notes: PatientNote[];
 }
 
+interface DoctorFeedback {
+  id: number;
+  content: string;
+  created_at: string;
+  doctor_name: string;
+}
+
 export default function PatientNotesViewScreen() {
   const router = useRouter();
   const { patientId, patientName } = useLocalSearchParams();
@@ -36,10 +43,21 @@ export default function PatientNotesViewScreen() {
   const [patientNotes, setPatientNotes] = useState<PatientNote[]>([]);
   const [patientInfo, setPatientInfo] = useState<PatientInfo | null>(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
+  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
+  const [feedbackContent, setFeedbackContent] = useState('');
+  const [feedbackList, setFeedbackList] = useState<{[key: number]: DoctorFeedback[]}>({});
+  const [savingFeedback, setSavingFeedback] = useState(false);
 
   useEffect(() => {
     loadPatientNotes();
   }, [patientId]);
+
+  useEffect(() => {
+    if (patientNotes.length > 0) {
+      loadAllFeedback();
+    }
+  }, [patientNotes]);
 
   const loadPatientNotes = async () => {
     try {
@@ -99,6 +117,72 @@ export default function PatientNotesViewScreen() {
       5: { text: 'Critical Care', color: '#8e44ad' }
     };
     return levels[level as keyof typeof levels] || { text: 'Unknown', color: '#95a5a6' };
+  };
+
+  const loadAllFeedback = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      const role = await AsyncStorage.getItem('role');
+      
+      for (const note of patientNotes) {
+        const res = await fetch(`${API_BASE_URL}/doctor_feedback/${note.note_id}?user_id=${userId}&role=${role}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            setFeedbackList(prev => ({
+              ...prev,
+              [note.note_id]: data.feedback
+            }));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Load feedback error:', error);
+    }
+  };
+
+  const openFeedbackModal = (noteId: number) => {
+    setSelectedNoteId(noteId);
+    setFeedbackContent('');
+    setFeedbackModalVisible(true);
+  };
+
+  const saveFeedback = async () => {
+    if (!feedbackContent.trim() || !selectedNoteId) {
+      Alert.alert('Error', 'Please enter feedback content');
+      return;
+    }
+
+    try {
+      setSavingFeedback(true);
+      const userId = await AsyncStorage.getItem('userId');
+      const role = await AsyncStorage.getItem('role');
+
+      const res = await fetch(`${API_BASE_URL}/doctor_feedback?user_id=${userId}&role=${role}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          note_id: selectedNoteId,
+          content: feedbackContent.trim()
+        })
+      });
+
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        Alert.alert('Success', 'Feedback saved successfully');
+        setFeedbackModalVisible(false);
+        setFeedbackContent('');
+        loadAllFeedback(); // Reload feedback
+      } else {
+        Alert.alert('Error', result.detail || 'Failed to save feedback');
+      }
+    } catch (error) {
+      console.error('Save feedback error:', error);
+      Alert.alert('Error', 'Something went wrong');
+    } finally {
+      setSavingFeedback(false);
+    }
   };
 
   const handleGoBack = () => {
@@ -164,6 +248,34 @@ export default function PatientNotesViewScreen() {
                     {careLevel.text}
                   </Text>
                 </View>
+
+                {/* Feedback Section */}
+                <View style={styles.feedbackSection}>
+                  <TouchableOpacity 
+                    style={styles.feedbackButton}
+                    onPress={() => openFeedbackModal(note.note_id)}
+                  >
+                    <Ionicons name="chatbubble-outline" size={16} color="#2980b9" />
+                    <Text style={styles.feedbackButtonText}>Add Feedback</Text>
+                  </TouchableOpacity>
+                  
+                  {feedbackList[note.note_id] && feedbackList[note.note_id].length > 0 && (
+                    <View style={styles.feedbackList}>
+                      <Text style={styles.feedbackTitle}>Doctor Feedback:</Text>
+                      {feedbackList[note.note_id].map((feedback) => (
+                        <View key={feedback.id} style={styles.feedbackItem}>
+                          <View style={styles.feedbackHeader}>
+                            <Text style={styles.feedbackDoctor}>{feedback.doctor_name}</Text>
+                            <Text style={styles.feedbackDate}>
+                              {new Date(feedback.created_at).toLocaleDateString('tr-TR')}
+                            </Text>
+                          </View>
+                          <Text style={styles.feedbackContent}>{feedback.content}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
               </View>
             );
           })
@@ -184,6 +296,58 @@ export default function PatientNotesViewScreen() {
           Total Notes: {patientNotes.length}
         </Text>
       </View>
+
+      {/* Feedback Modal */}
+      <Modal
+        visible={feedbackModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setFeedbackModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Add Doctor Feedback</Text>
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setFeedbackModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.modalContent}>
+            <Text style={styles.modalLabel}>Feedback Content:</Text>
+            <TextInput
+              style={styles.feedbackInput}
+              multiline
+              placeholder="Write your feedback for the caregiver..."
+              value={feedbackContent}
+              onChangeText={setFeedbackContent}
+              textAlignVertical="top"
+              numberOfLines={8}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setFeedbackModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.saveButton, savingFeedback && { backgroundColor: '#ccc' }]}
+                onPress={saveFeedback}
+                disabled={savingFeedback}
+              >
+                <Text style={styles.saveButtonText}>
+                  {savingFeedback ? 'Saving...' : 'Save Feedback'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -337,5 +501,145 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#7f8c8d',
     textAlign: 'center',
+  },
+  // Feedback styles
+  feedbackSection: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#ecf0f1',
+  },
+  feedbackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2980b9',
+    alignSelf: 'flex-start',
+  },
+  feedbackButtonText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#2980b9',
+    fontWeight: '600',
+  },
+  feedbackList: {
+    marginTop: 15,
+  },
+  feedbackTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2a3b4c',
+    marginBottom: 10,
+  },
+  feedbackItem: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2980b9',
+  },
+  feedbackHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  feedbackDoctor: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#2980b9',
+  },
+  feedbackDate: {
+    fontSize: 10,
+    color: '#7f8c8d',
+  },
+  feedbackContent: {
+    fontSize: 13,
+    color: '#2a3b4c',
+    lineHeight: 18,
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f4f6fa',
+    padding: 20,
+    paddingTop: 60,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2a3b4c',
+  },
+  closeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#e74c3c',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    flex: 1,
+  },
+  modalLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2a3b4c',
+    marginBottom: 10,
+  },
+  feedbackInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    padding: 15,
+    backgroundColor: '#fff',
+    fontSize: 16,
+    minHeight: 150,
+    maxHeight: 200,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    marginTop: 20,
+    gap: 15,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#95a5a6',
+  },
+  saveButton: {
+    backgroundColor: '#2980b9',
+  },
+  cancelButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

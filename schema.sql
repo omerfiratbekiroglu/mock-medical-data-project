@@ -85,4 +85,26 @@ CREATE INDEX IF NOT EXISTS idx_critical_alerts_patient_id ON critical_alerts(pat
 CREATE INDEX IF NOT EXISTS idx_critical_alerts_is_read ON critical_alerts(is_read);
 CREATE INDEX IF NOT EXISTS idx_critical_alerts_created_at ON critical_alerts(created_at DESC);
 
+-- Doctor feedback table for caregiver notes
+CREATE TABLE IF NOT EXISTS doctor_feedback (
+    id SERIAL PRIMARY KEY,
+    note_id INTEGER NOT NULL,
+    doctor_id INTEGER NOT NULL,
+    patient_id INTEGER NOT NULL,
+    caregiver_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
+
+    FOREIGN KEY (note_id) REFERENCES caregiver_notes(id) ON DELETE CASCADE,
+    FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (caregiver_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Index for performance
+CREATE INDEX IF NOT EXISTS idx_doctor_feedback_note_id ON doctor_feedback(note_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_feedback_caregiver_id ON doctor_feedback(caregiver_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_feedback_patient_id ON doctor_feedback(patient_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_feedback_created_at ON doctor_feedback(created_at DESC);
+
 

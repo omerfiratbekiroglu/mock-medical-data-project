@@ -730,3 +730,146 @@ async def mark_alert_as_read(alert_id: int, caregiver_id: int, role: str):
         return {"success": True, "message": "Alert marked as read"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Doctor Feedback Models
+class DoctorFeedbackInput(BaseModel):
+    note_id: int
+    content: str
+
+@app.post("/doctor_feedback")
+async def add_doctor_feedback(feedback_data: DoctorFeedbackInput, user_id: int, role: str):
+    """Doktor caregiver notuna dönüt ekler"""
+    if role != 'doctor':
+        raise HTTPException(status_code=403, detail="Only doctors can add feedback")
+    
+    try:
+        # Note'un varlığını ve hangi hastaya ait olduğunu kontrol et
+        note_query = """
+            SELECT patient_id, caregiver_id FROM caregiver_notes 
+            WHERE id = :note_id
+        """
+        note = await database.fetch_one(note_query, {"note_id": feedback_data.note_id})
+        
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        
+        # Feedback'i ekle
+        insert_query = """
+            INSERT INTO doctor_feedback (note_id, doctor_id, patient_id, caregiver_id, content, created_at)
+            VALUES (:note_id, :doctor_id, :patient_id, :caregiver_id, :content, NOW())
+            RETURNING id, created_at
+        """
+        result = await database.fetch_one(insert_query, {
+            "note_id": feedback_data.note_id,
+            "doctor_id": user_id,
+            "patient_id": note["patient_id"],
+            "caregiver_id": note["caregiver_id"],
+            "content": feedback_data.content
+        })
+        
+        return {
+            "success": True,
+            "message": "Feedback added successfully",
+            "feedback_id": result["id"],
+            "created_at": result["created_at"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/doctor_feedback/{note_id}")
+async def get_feedback_for_note(note_id: int, user_id: int, role: str):
+    """Belirli bir note için doktor dönütlerini getir"""
+    if role not in ['doctor', 'caregiver']:
+        raise HTTPException(status_code=403, detail="Only doctors and caregivers can view feedback")
+    
+    try:
+        query = """
+            SELECT 
+                df.id, df.content, df.created_at,
+                CONCAT(u.first_name, ' ', u.last_name) as doctor_name
+            FROM doctor_feedback df
+            JOIN users u ON df.doctor_id = u.id
+            WHERE df.note_id = :note_id
+            ORDER BY df.created_at ASC
+        """
+        
+        feedback_list = await database.fetch_all(query, {"note_id": note_id})
+        
+        return {
+            "success": True,
+            "feedback": [dict(fb) for fb in feedback_list]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/caregiver_feedback")
+async def get_caregiver_feedback(caregiver_id: int, role: str, limit: int = 50):
+    """Bakıcının aldığı tüm doktor dönütlerini ve kendi notlarını getir"""
+    if role != 'caregiver':
+        raise HTTPException(status_code=403, detail="Only caregivers can view their feedback")
+    
+    try:
+        # Doktor geri bildirimlerini getir (orijinal not içeriğiyle birlikte)
+        feedback_query = """
+            SELECT 
+                df.id as feedback_id,
+                df.content as feedback_content,
+                df.created_at as feedback_created_at,
+                cn.id as note_id,
+                cn.title as note_title,
+                cn.content as note_content,
+                cn.care_level,
+                cn.created_at as note_created_at,
+                CONCAT(doctor.first_name, ' ', doctor.last_name) as doctor_name,
+                CONCAT(patient.first_name, ' ', patient.last_name) as patient_name,
+                'doctor_feedback' as item_type
+            FROM doctor_feedback df
+            JOIN caregiver_notes cn ON df.note_id = cn.id
+            JOIN users doctor ON df.doctor_id = doctor.id
+            JOIN users patient ON df.patient_id = patient.id
+            WHERE df.caregiver_id = :caregiver_id
+        """
+        
+        # Bakıcının kendi notlarını getir
+        notes_query = """
+            SELECT 
+                NULL as feedback_id,
+                NULL as feedback_content,
+                NULL as feedback_created_at,
+                cn.id as note_id,
+                cn.title as note_title,
+                cn.content as note_content,
+                cn.care_level,
+                cn.created_at as note_created_at,
+                NULL as doctor_name,
+                CONCAT(patient.first_name, ' ', patient.last_name) as patient_name,
+                'caregiver_note' as item_type
+            FROM caregiver_notes cn
+            JOIN users patient ON cn.patient_id = patient.id
+            WHERE cn.caregiver_id = :caregiver_id
+        """
+        
+        # Birleştir ve tarihe göre sırala
+        combined_query = f"""
+            ({feedback_query})
+            UNION ALL
+            ({notes_query})
+            ORDER BY note_created_at DESC
+            LIMIT :limit
+        """
+        
+        feedback_list = await database.fetch_all(combined_query, {
+            "caregiver_id": caregiver_id,
+            "limit": limit
+        })
+        
+        return {
+            "success": True,
+            "feedback": [dict(fb) for fb in feedback_list],
+            "total": len(feedback_list)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

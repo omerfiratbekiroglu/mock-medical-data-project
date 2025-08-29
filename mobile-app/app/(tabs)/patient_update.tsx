@@ -3,29 +3,17 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView,
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import API_BASE_URL from '../../config';
 
-interface CriticalAlert {
-  id: number;
-  patient_id: number;
-  alert_type: string;
-  heart_rate: number;
-  threshold_value: number;
-  message: string;
-  is_read: boolean;
-  created_at: string;
-  patient_name: string;
-  patient_email: string;
-}
 
 export default function PatientUpdateScreen() {
   const [title, setTitle] = useState('');
   const [comment, setComment] = useState('');
   const [careLevel, setCareLevel] = useState(3);
   const [saving, setSaving] = useState(false);
-  const [criticalAlerts, setCriticalAlerts] = useState<CriticalAlert[]>([]);
-  const [showAlertsModal, setShowAlertsModal] = useState(false);
-  const [unreadAlertsCount, setUnreadAlertsCount] = useState(0);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [doctorFeedback, setDoctorFeedback] = useState<any[]>([]);
 
-  const loadCriticalAlerts = async () => {
+
+  const loadDoctorFeedback = async () => {
     try {
       const userId = await AsyncStorage.getItem('userId');
       const role = await AsyncStorage.getItem('role');
@@ -33,42 +21,24 @@ export default function PatientUpdateScreen() {
       if (role !== 'caregiver' || !userId) return;
 
       const response = await fetch(
-        `${API_BASE_URL}/critical_alerts?caregiver_id=${userId}&role=${role}`
+        `${API_BASE_URL}/caregiver_feedback?caregiver_id=${userId}&role=${role}`
       );
       const result = await response.json();
       
       if (result.success) {
-        setCriticalAlerts(result.alerts);
-        const unreadCount = result.alerts.filter((alert: CriticalAlert) => !alert.is_read).length;
-        setUnreadAlertsCount(unreadCount);
+        setDoctorFeedback(result.feedback);
       }
     } catch (error) {
-      console.log('Error loading critical alerts:', error);
-    }
-  };
-
-  const markAlertAsRead = async (alertId: number) => {
-    try {
-      const userId = await AsyncStorage.getItem('userId');
-      const role = await AsyncStorage.getItem('role');
-      
-      const response = await fetch(
-        `${API_BASE_URL}/critical_alerts/${alertId}/mark_read?caregiver_id=${userId}&role=${role}`,
-        { method: 'PUT' }
-      );
-      
-      if (response.ok) {
-        loadCriticalAlerts(); // Reload alerts to update read status
-      }
-    } catch (error) {
-      console.log('Error marking alert as read:', error);
+      console.log('Error loading doctor feedback:', error);
     }
   };
 
   useEffect(() => {
-    loadCriticalAlerts();
-    // Poll for new alerts every 30 seconds
-    const interval = setInterval(loadCriticalAlerts, 30000);
+    loadDoctorFeedback();
+    // Poll for new feedback every 30 seconds
+    const interval = setInterval(() => {
+      loadDoctorFeedback();
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -130,13 +100,13 @@ export default function PatientUpdateScreen() {
           <Text style={styles.subtext}>Add observation notes for the selected patient.</Text>
         </View>
         
-        {/* Critical Alerts Button */}
+        {/* Feedback Button */}
         <TouchableOpacity 
-          style={[styles.alertsButton, unreadAlertsCount > 0 && styles.alertsButtonActive]}
-          onPress={() => setShowAlertsModal(true)}
+          style={[styles.feedbackButton, doctorFeedback.length > 0 && styles.feedbackButtonActive]}
+          onPress={() => setShowFeedbackModal(true)}
         >
-          <Text style={[styles.alertsButtonText, unreadAlertsCount > 0 && styles.alertsButtonTextActive]}>
-            🚨 Alerts {unreadAlertsCount > 0 && `(${unreadAlertsCount})`}
+          <Text style={[styles.feedbackButtonText, doctorFeedback.length > 0 && styles.feedbackButtonTextActive]}>
+            💬 Feedback {doctorFeedback.length > 0 && `(${doctorFeedback.length})`}
           </Text>
         </TouchableOpacity>
       </View>
@@ -189,55 +159,66 @@ export default function PatientUpdateScreen() {
         <Text style={styles.buttonText}>{saving ? 'Saving...' : 'Save Note'}</Text>
       </TouchableOpacity>
 
-      {/* Critical Alerts Modal */}
+
+      {/* Doctor Feedback Modal */}
       <Modal
-        visible={showAlertsModal}
+        visible={showFeedbackModal}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowAlertsModal(false)}
+        onRequestClose={() => setShowFeedbackModal(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Critical Heart Rate Alerts</Text>
+            <Text style={styles.modalTitle}>Doctor Feedback</Text>
             <TouchableOpacity 
               style={styles.closeButton}
-              onPress={() => setShowAlertsModal(false)}
+              onPress={() => setShowFeedbackModal(false)}
             >
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
           </View>
           
-          <ScrollView style={styles.alertsList}>
-            {criticalAlerts.length === 0 ? (
-              <Text style={styles.noAlertsText}>No critical alerts at this time.</Text>
+          <ScrollView style={styles.feedbackList}>
+            {doctorFeedback.length === 0 ? (
+              <Text style={styles.noFeedbackText}>No notes or feedback yet.</Text>
             ) : (
-              criticalAlerts.map((alert: CriticalAlert) => (
-                <View 
-                  key={alert.id} 
-                  style={[styles.alertItem, !alert.is_read && styles.unreadAlert]}
-                >
-                  <View style={styles.alertHeader}>
-                    <Text style={styles.patientName}>{alert.patient_name}</Text>
-                    <Text style={styles.alertTime}>
-                      {new Date(alert.created_at).toLocaleString('tr-TR')}
+              doctorFeedback.map((item) => (
+                <View key={`${item.item_type}-${item.note_id}`} style={styles.feedbackItem}>
+                  <View style={styles.feedbackNoteInfo}>
+                    <Text style={styles.feedbackNoteTitle}>{item.note_title}</Text>
+                    <Text style={styles.feedbackPatient}>Patient: {item.patient_name}</Text>
+                    <Text style={styles.feedbackDate}>
+                      Note Date: {new Date(item.note_created_at).toLocaleDateString('tr-TR')}
                     </Text>
                   </View>
                   
-                  <Text style={styles.alertMessage}>{alert.message}</Text>
-                  
-                  <View style={styles.alertDetails}>
-                    <Text style={styles.heartRateText}>
-                      ♥ {alert.heart_rate} BPM (Eşik: {alert.threshold_value} BPM)
-                    </Text>
-                  </View>
-                  
-                  {!alert.is_read && (
-                    <TouchableOpacity 
-                      style={styles.markReadButton}
-                      onPress={() => markAlertAsRead(alert.id)}
-                    >
-                      <Text style={styles.markReadButtonText}>Okundu olarak işaretle</Text>
-                    </TouchableOpacity>
+                  {item.item_type === 'doctor_feedback' ? (
+                    <View style={styles.feedbackContent}>
+                      {/* Orijinal bakıcı yorumunu göster */}
+                      <View style={styles.originalCommentSection}>
+                        <Text style={styles.originalCommentLabel}>Your Original Comment:</Text>
+                        <Text style={styles.originalCommentText}>{item.note_content}</Text>
+                      </View>
+                      
+                      {/* Doktor dönütü */}
+                      <View style={styles.doctorFeedbackSection}>
+                        <View style={styles.feedbackHeader}>
+                          <Text style={styles.doctorName}>Dr. {item.doctor_name} replied:</Text>
+                          <Text style={styles.feedbackDateTime}>
+                            {new Date(item.feedback_created_at).toLocaleString('tr-TR')}
+                          </Text>
+                        </View>
+                        <Text style={styles.feedbackText}>{item.feedback_content}</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.caregiverNoteContent}>
+                      <View style={styles.feedbackHeader}>
+                        <Text style={styles.caregiverName}>Your Note</Text>
+                        <Text style={styles.careLevelBadge}>Care Level: {item.care_level}</Text>
+                      </View>
+                      <Text style={styles.caregiverNoteText}>{item.note_content}</Text>
+                    </View>
                   )}
                 </View>
               ))
@@ -267,26 +248,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
     color: '#2a3b4c',
-  },
-  alertsButton: {
-    backgroundColor: '#e8e8e8',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ccc',
-  },
-  alertsButtonActive: {
-    backgroundColor: '#ff4757',
-    borderColor: '#ff4757',
-  },
-  alertsButtonText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#666',
-  },
-  alertsButtonTextActive: {
-    color: '#fff',
   },
   subtext: {
     fontSize: 14,
@@ -391,72 +352,149 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  alertsList: {
+  // Feedback styles
+  feedbackButton: {
+    backgroundColor: '#e8e8e8',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 50,
+    right: 100,
+  },
+  feedbackButtonActive: {
+    backgroundColor: '#27ae60',
+    borderColor: '#27ae60',
+  },
+  feedbackButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  feedbackButtonTextActive: {
+    color: '#fff',
+  },
+  feedbackList: {
     flex: 1,
   },
-  noAlertsText: {
+  noFeedbackText: {
     textAlign: 'center',
     fontSize: 16,
     color: '#666',
     marginTop: 50,
     fontStyle: 'italic',
   },
-  alertItem: {
+  feedbackItem: {
     backgroundColor: '#fff',
     padding: 15,
-    marginBottom: 10,
-    borderRadius: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: '#ccc',
+    marginBottom: 15,
+    borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  unreadAlert: {
-    borderLeftColor: '#ff4757',
-    backgroundColor: '#fff5f5',
+  feedbackNoteInfo: {
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ecf0f1',
   },
-  alertHeader: {
+  feedbackNoteTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2a3b4c',
+    marginBottom: 4,
+  },
+  feedbackPatient: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    marginBottom: 2,
+  },
+  feedbackDate: {
+    fontSize: 12,
+    color: '#95a5a6',
+  },
+  feedbackContent: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#27ae60',
+  },
+  originalCommentSection: {
+    backgroundColor: '#e8f4f8',
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2980b9',
+  },
+  originalCommentLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#2980b9',
+    marginBottom: 6,
+  },
+  originalCommentText: {
+    fontSize: 13,
+    color: '#2a3b4c',
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  doctorFeedbackSection: {
+    backgroundColor: '#f0f8e8',
+    padding: 10,
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#27ae60',
+  },
+  feedbackHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  patientName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2a3b4c',
-  },
-  alertTime: {
-    fontSize: 12,
-    color: '#666',
-  },
-  alertMessage: {
+  doctorName: {
     fontSize: 14,
-    color: '#444',
-    marginBottom: 10,
+    fontWeight: 'bold',
+    color: '#27ae60',
+  },
+  feedbackDateTime: {
+    fontSize: 11,
+    color: '#7f8c8d',
+  },
+  feedbackText: {
+    fontSize: 14,
+    color: '#2a3b4c',
     lineHeight: 20,
   },
-  alertDetails: {
-    marginBottom: 10,
+  // Caregiver note styles
+  caregiverNoteContent: {
+    backgroundColor: '#f0f8ff',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2980b9',
   },
-  heartRateText: {
+  caregiverName: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#e74c3c',
+    color: '#2980b9',
   },
-  markReadButton: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#2980b9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
+  careLevelBadge: {
+    fontSize: 11,
+    color: '#7f8c8d',
+    fontWeight: 'bold',
   },
-  markReadButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+  caregiverNoteText: {
+    fontSize: 14,
+    color: '#2a3b4c',
+    lineHeight: 20,
+    marginTop: 4,
   },
 });
