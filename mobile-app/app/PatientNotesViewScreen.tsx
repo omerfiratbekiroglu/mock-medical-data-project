@@ -6,6 +6,7 @@ import API_BASE_URL from '../config';
 import { Ionicons } from '@expo/vector-icons';
 import NavigationBar from '../components/NavigationBar';
 import PatientDrawerPanel from '../components/PatientDrawerPanel';
+import ChatModal from '../components/ChatModal';
 
 interface PatientNote {
   note_id: number;
@@ -48,6 +49,9 @@ export default function PatientNotesViewScreen() {
   const [feedbackContent, setFeedbackContent] = useState('');
   const [feedbackList, setFeedbackList] = useState<{[key: number]: DoctorFeedback[]}>({});
   const [savingFeedback, setSavingFeedback] = useState(false);
+  const [chatModalVisible, setChatModalVisible] = useState(false);
+  const [selectedChatNoteId, setSelectedChatNoteId] = useState<number | null>(null);
+  const [selectedChatNoteTitle, setSelectedChatNoteTitle] = useState<string>('');
 
   useEffect(() => {
     loadPatientNotes();
@@ -145,6 +149,12 @@ export default function PatientNotesViewScreen() {
     setSelectedNoteId(noteId);
     setFeedbackContent('');
     setFeedbackModalVisible(true);
+  };
+
+  const openChatModal = (noteId: number, noteTitle: string) => {
+    setSelectedChatNoteId(noteId);
+    setSelectedChatNoteTitle(noteTitle);
+    setChatModalVisible(true);
   };
 
   const saveFeedback = async () => {
@@ -251,13 +261,23 @@ export default function PatientNotesViewScreen() {
 
                 {/* Feedback Section */}
                 <View style={styles.feedbackSection}>
-                  <TouchableOpacity 
-                    style={styles.feedbackButton}
-                    onPress={() => openFeedbackModal(note.note_id)}
-                  >
-                    <Ionicons name="chatbubble-outline" size={16} color="#2980b9" />
-                    <Text style={styles.feedbackButtonText}>Add Feedback</Text>
-                  </TouchableOpacity>
+                  <View style={styles.actionButtonsContainer}>
+                    <TouchableOpacity 
+                      style={styles.feedbackButton}
+                      onPress={() => openFeedbackModal(note.note_id)}
+                    >
+                      <Ionicons name="chatbubble-outline" size={16} color="#2980b9" />
+                      <Text style={styles.feedbackButtonText}>Add Feedback</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      style={styles.chatButton}
+                      onPress={() => openChatModal(note.note_id, note.title)}
+                    >
+                      <Ionicons name="chatbubbles" size={16} color="#27ae60" />
+                      <Text style={styles.chatButtonText}>Chat</Text>
+                    </TouchableOpacity>
+                  </View>
                   
                   {feedbackList[note.note_id] && feedbackList[note.note_id].length > 0 && (
                     <View style={styles.feedbackList}>
@@ -348,6 +368,15 @@ export default function PatientNotesViewScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Chat Modal */}
+      <ChatModal
+        visible={chatModalVisible}
+        onClose={() => setChatModalVisible(false)}
+        noteId={selectedChatNoteId || 0}
+        noteTitle={selectedChatNoteTitle}
+        patientName={patientInfo?.patient_name || patientName as string}
+      />
     </View>
   );
 }
@@ -509,6 +538,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#ecf0f1',
   },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 15,
+  },
   feedbackButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -517,12 +551,30 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#2980b9',
-    alignSelf: 'flex-start',
+    flex: 1,
+    justifyContent: 'center',
   },
   feedbackButtonText: {
     marginLeft: 8,
     fontSize: 14,
     color: '#2980b9',
+    fontWeight: '600',
+  },
+  chatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#27ae60',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  chatButtonText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#27ae60',
     fontWeight: '600',
   },
   feedbackList: {

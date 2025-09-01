@@ -737,6 +737,21 @@ class DoctorFeedbackInput(BaseModel):
     note_id: int
     content: str
 
+# Chat Models
+class ChatMessage(BaseModel):
+    note_id: int
+    content: str
+
+class ChatResponse(BaseModel):
+    id: int
+    note_id: int
+    sender_id: int
+    sender_name: str
+    sender_role: str
+    content: str
+    created_at: datetime
+    is_read: bool
+
 @app.post("/doctor_feedback")
 async def add_doctor_feedback(feedback_data: DoctorFeedbackInput, user_id: int, role: str):
     """Doktor caregiver notuna dönüt ekler"""
@@ -870,6 +885,138 @@ async def get_caregiver_feedback(caregiver_id: int, role: str, limit: int = 50):
             "success": True,
             "feedback": [dict(fb) for fb in feedback_list],
             "total": len(feedback_list)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Chat Endpoints
+@app.post("/chat/send")
+async def send_chat_message(message: ChatMessage, user_id: int, role: str):
+    """Note için chat mesajı gönder"""
+    if role not in ['doctor', 'caregiver']:
+        raise HTTPException(status_code=403, detail="Only doctors and caregivers can send messages")
+    
+    try:
+        # Note'un varlığını kontrol et ve caregiver bilgisini al
+        note_query = """
+            SELECT patient_id, caregiver_id FROM caregiver_notes 
+            WHERE id = :note_id
+        """
+        note = await database.fetch_one(note_query, {"note_id": message.note_id})
+        
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        
+        # Yetki kontrolü - doktor veya notun sahibi caregiver olmalı
+        if role == 'caregiver' and note["caregiver_id"] != user_id:
+            raise HTTPException(status_code=403, detail="You can only chat on your own notes")
+        
+        # Mesajı kaydet
+        insert_query = """
+            INSERT INTO chat_messages (note_id, sender_id, sender_role, content, created_at)
+            VALUES (:note_id, :sender_id, :sender_role, :content, NOW())
+            RETURNING id, created_at
+        """
+        result = await database.fetch_one(insert_query, {
+            "note_id": message.note_id,
+            "sender_id": user_id,
+            "sender_role": role,
+            "content": message.content
+        })
+        
+        return {
+            "success": True,
+            "message_id": result["id"],
+            "created_at": result["created_at"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/chat/{note_id}")
+async def get_chat_messages(note_id: int, user_id: int, role: str):
+    """Note için chat mesajlarını getir"""
+    if role not in ['doctor', 'caregiver']:
+        raise HTTPException(status_code=403, detail="Only doctors and caregivers can view messages")
+    
+    try:
+        # Note'un varlığını ve yetki kontrolünü yap
+        note_query = """
+            SELECT patient_id, caregiver_id FROM caregiver_notes 
+            WHERE id = :note_id
+        """
+        note = await database.fetch_one(note_query, {"note_id": note_id})
+        
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        
+        # Yetki kontrolü
+        if role == 'caregiver' and note["caregiver_id"] != user_id:
+            raise HTTPException(status_code=403, detail="You can only view chat on your own notes")
+        
+        # Chat mesajlarını getir
+        messages_query = """
+            SELECT 
+                cm.id, cm.note_id, cm.sender_id, cm.sender_role, cm.content, 
+                cm.created_at, cm.is_read,
+                CONCAT(u.first_name, ' ', u.last_name) as sender_name
+            FROM chat_messages cm
+            JOIN users u ON cm.sender_id = u.id
+            WHERE cm.note_id = :note_id
+            ORDER BY cm.created_at ASC
+        """
+        
+        messages = await database.fetch_all(messages_query, {"note_id": note_id})
+        
+        # Okunmamış mesajları okundu olarak işaretle
+        mark_read_query = """
+            UPDATE chat_messages 
+            SET is_read = true 
+            WHERE note_id = :note_id AND sender_id != :user_id AND is_read = false
+        """
+        await database.execute(mark_read_query, {"note_id": note_id, "user_id": user_id})
+        
+        return {
+            "success": True,
+            "messages": [dict(msg) for msg in messages]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/chat/unread_count")
+async def get_unread_message_count(user_id: int, role: str):
+    """Kullanıcının okunmamış mesaj sayısını getir"""
+    if role not in ['doctor', 'caregiver']:
+        raise HTTPException(status_code=403, detail="Only doctors and caregivers can check messages")
+    
+    try:
+        if role == 'caregiver':
+            # Caregiver sadece kendi notlarındaki okunmamış mesajları sayar
+            query = """
+                SELECT COUNT(*) as unread_count
+                FROM chat_messages cm
+                JOIN caregiver_notes cn ON cm.note_id = cn.id
+                WHERE cn.caregiver_id = :user_id 
+                AND cm.sender_id != :user_id 
+                AND cm.is_read = false
+            """
+        else:  # doctor
+            # Doktor tüm notlardaki okunmamış mesajları sayar
+            query = """
+                SELECT COUNT(*) as unread_count
+                FROM chat_messages cm
+                WHERE cm.sender_id != :user_id 
+                AND cm.is_read = false
+                AND cm.sender_role = 'caregiver'
+            """
+        
+        result = await database.fetch_one(query, {"user_id": user_id})
+        
+        return {
+            "success": True,
+            "unread_count": result["unread_count"] or 0
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

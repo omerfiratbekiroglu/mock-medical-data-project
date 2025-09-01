@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import API_BASE_URL from '../../config';
+import ChatModal from '../../components/ChatModal';
+import { Ionicons } from '@expo/vector-icons';
 
 
 export default function PatientUpdateScreen() {
@@ -11,6 +13,11 @@ export default function PatientUpdateScreen() {
   const [saving, setSaving] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [doctorFeedback, setDoctorFeedback] = useState<any[]>([]);
+  const [chatModalVisible, setChatModalVisible] = useState(false);
+  const [selectedChatNoteId, setSelectedChatNoteId] = useState<number | null>(null);
+  const [selectedChatNoteTitle, setSelectedChatNoteTitle] = useState<string>('');
+  const [selectedPatientName, setSelectedPatientName] = useState<string>('');
+  const [unreadMessageCount, setUnreadMessageCount] = useState<number>(0);
 
 
   const loadDoctorFeedback = async () => {
@@ -33,11 +40,33 @@ export default function PatientUpdateScreen() {
     }
   };
 
+  const loadUnreadMessageCount = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      const role = await AsyncStorage.getItem('role');
+      
+      if (role !== 'caregiver' || !userId) return;
+
+      const response = await fetch(
+        `${API_BASE_URL}/chat/unread_count?user_id=${userId}&role=${role}`
+      );
+      const result = await response.json();
+      
+      if (result.success) {
+        setUnreadMessageCount(result.unread_count);
+      }
+    } catch (error) {
+      console.log('Error loading unread count:', error);
+    }
+  };
+
   useEffect(() => {
     loadDoctorFeedback();
-    // Poll for new feedback every 30 seconds
+    loadUnreadMessageCount();
+    // Poll for new feedback and messages every 30 seconds
     const interval = setInterval(() => {
       loadDoctorFeedback();
+      loadUnreadMessageCount();
     }, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -92,23 +121,49 @@ export default function PatientUpdateScreen() {
     }
   };
 
+  const openChatModal = (noteId: number, noteTitle: string, patientName: string) => {
+    setSelectedChatNoteId(noteId);
+    setSelectedChatNoteTitle(noteTitle);
+    setSelectedPatientName(patientName);
+    setChatModalVisible(true);
+  };
+
+  const handleChatClose = () => {
+    setChatModalVisible(false);
+    // Reload unread count when chat closes
+    loadUnreadMessageCount();
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.headerContainer}>
-        <View>
+        <View style={styles.headerTextContainer}>
           <Text style={styles.header}>Caregiver Notes</Text>
           <Text style={styles.subtext}>Add observation notes for the selected patient.</Text>
         </View>
         
-        {/* Feedback Button */}
-        <TouchableOpacity 
-          style={[styles.feedbackButton, doctorFeedback.length > 0 && styles.feedbackButtonActive]}
-          onPress={() => setShowFeedbackModal(true)}
-        >
-          <Text style={[styles.feedbackButtonText, doctorFeedback.length > 0 && styles.feedbackButtonTextActive]}>
-            💬 Feedback {doctorFeedback.length > 0 && `(${doctorFeedback.length})`}
-          </Text>
-        </TouchableOpacity>
+        {/* Feedback Button with Chat Notification */}
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            style={[styles.feedbackButton, doctorFeedback.length > 0 && styles.feedbackButtonActive]}
+            onPress={() => setShowFeedbackModal(true)}
+          >
+            <Text style={[styles.feedbackButtonText, doctorFeedback.length > 0 && styles.feedbackButtonTextActive]}>
+              💬 Notes {doctorFeedback.length > 0 && `(${doctorFeedback.length})`}
+            </Text>
+            {unreadMessageCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationText}>{unreadMessageCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          
+          {unreadMessageCount > 0 && (
+            <Text style={styles.unreadMessageHint}>
+              {unreadMessageCount} new message{unreadMessageCount > 1 ? 's' : ''}
+            </Text>
+          )}
+        </View>
       </View>
 
       <Text style={styles.label}>Note Title</Text>
@@ -220,12 +275,30 @@ export default function PatientUpdateScreen() {
                       <Text style={styles.caregiverNoteText}>{item.note_content}</Text>
                     </View>
                   )}
+                  
+                  {/* Chat Button for each note */}
+                  <TouchableOpacity 
+                    style={styles.chatButton}
+                    onPress={() => openChatModal(item.note_id, item.note_title, item.patient_name)}
+                  >
+                    <Ionicons name="chatbubbles" size={16} color="#27ae60" />
+                    <Text style={styles.chatButtonText}>Open Chat</Text>
+                  </TouchableOpacity>
                 </View>
               ))
             )}
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Chat Modal */}
+      <ChatModal
+        visible={chatModalVisible}
+        onClose={handleChatClose}
+        noteId={selectedChatNoteId || 0}
+        noteTitle={selectedChatNoteTitle}
+        patientName={selectedPatientName}
+      />
     </ScrollView>
   );
 }
@@ -242,6 +315,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 20,
+    paddingHorizontal: 10,
+  },
+  headerTextContainer: {
+    flexShrink: 1,
+    marginRight: 15,
+    maxWidth: '65%',
   },
   header: {
     fontSize: 24,
@@ -353,6 +432,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   // Feedback styles
+  buttonContainer: {
+    alignItems: 'center',
+    position: 'relative',
+  },
   feedbackButton: {
     backgroundColor: '#e8e8e8',
     paddingVertical: 10,
@@ -362,8 +445,6 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 50,
-    right: 100,
   },
   feedbackButtonActive: {
     backgroundColor: '#27ae60',
@@ -496,5 +577,47 @@ const styles = StyleSheet.create({
     color: '#2a3b4c',
     lineHeight: 20,
     marginTop: 4,
+  },
+  chatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    padding: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#27ae60',
+    marginTop: 10,
+    alignSelf: 'flex-end',
+  },
+  chatButtonText: {
+    marginLeft: 6,
+    fontSize: 12,
+    color: '#27ae60',
+    fontWeight: '600',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#e74c3c',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  notificationText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  unreadMessageHint: {
+    fontSize: 11,
+    color: '#e74c3c',
+    fontWeight: 'bold',
+    marginTop: 4,
+    textAlign: 'center',
   },
 });

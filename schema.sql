@@ -107,4 +107,24 @@ CREATE INDEX IF NOT EXISTS idx_doctor_feedback_caregiver_id ON doctor_feedback(c
 CREATE INDEX IF NOT EXISTS idx_doctor_feedback_patient_id ON doctor_feedback(patient_id);
 CREATE INDEX IF NOT EXISTS idx_doctor_feedback_created_at ON doctor_feedback(created_at DESC);
 
+-- Chat messages table for note discussions between doctors and caregivers
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id SERIAL PRIMARY KEY,
+    note_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    sender_role VARCHAR(20) NOT NULL CHECK (sender_role IN ('doctor', 'caregiver')),
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
+
+    FOREIGN KEY (note_id) REFERENCES caregiver_notes(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Index for performance
+CREATE INDEX IF NOT EXISTS idx_chat_messages_note_id ON chat_messages(note_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_sender_id ON chat_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_is_read ON chat_messages(is_read);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at ASC);
+
 
