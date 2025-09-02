@@ -5,8 +5,14 @@ import API_BASE_URL from '../../config';
 import PageWithNavbar from '../../components/PageWithNavbar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const chartWidth = Dimensions.get('window').width - 20;
-const chartHeight = 220;
+const chartWidth = Dimensions.get('window').width - 40;
+const chartHeight = 350;
+
+const CARD_PADDING_V = 20;   // üst-alt boşluk
+const CARD_PADDING_H = 16;   // sağ-sol boşluk
+const CARD_WIDTH = chartWidth; 
+const INNER_CHART_HEIGHT = chartHeight;
+const INNER_CHART_WIDTH = CARD_WIDTH - CARD_PADDING_H;
 
 const CRITICAL_HEART_RATE_THRESHOLD = 85;
 
@@ -15,20 +21,20 @@ const chartConfig = {
   backgroundGradientFrom: '#fff',
   backgroundGradientTo: '#fff',
   decimalPlaces: 0,
-  color: (opacity = 1) => `rgba(231,76,60,${opacity})`,
-  labelColor: (opacity = 1) => `rgba(42,59,76,${opacity})`,
-  style: { borderRadius: 10 },
+  color: (opacity = 1) => `rgba(231, 76, 60, ${opacity})`,
+  labelColor: (opacity = 1) => `rgba(42, 59, 76, ${opacity})`,
   propsForDots: {
     r: '4',
     strokeWidth: '2',
     stroke: '#e74c3c',
   },
   fillShadowGradient: '#e74c3c',
-  fillShadowGradientOpacity: 0.1,
+  fillShadowGradientOpacity: 0.2,
   propsForLabels: {
     fontSize: 10,
-    rotation: 45,
+    dx: -10,
   },
+  style: { borderRadius: 10 },
 };
 
 export default function HeartRateScreen() {
@@ -253,38 +259,69 @@ export default function HeartRateScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>Heart Rate (Live)</Text>
 
-        {data.length > 0 ? (
-          <LineChart
-            data={{
-              labels,
-              datasets: [{ data }],
+        {data.length > 0 && data.every(n => typeof n === 'number' && isFinite(n)) ? (
+          <View
+            style={{
+              width: CARD_WIDTH,
+              backgroundColor: '#fff',
+              borderRadius: 12,
+              paddingVertical: CARD_PADDING_V,
+              paddingHorizontal: CARD_PADDING_H,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+              elevation: 4,
             }}
-            width={chartWidth}
-            height={chartHeight}
-            yAxisSuffix=" bpm"
-            chartConfig={chartConfig}
-            bezier
-            style={styles.chart}
-            withVerticalLines={false}
-            withHorizontalLines={true}
-            withInnerLines={false}
-            fromZero
-            renderDotContent={({ x, y, index }) => (
-              <Text
-                key={index}
-                style={{
-                  position: 'absolute',
-                  top: y - 15,
-                  left: x - 12,
-                  fontSize: 9,
-                  color: '#2a3b4c',
-                  fontWeight: 'bold',
+          >
+            <View style={{ height: INNER_CHART_HEIGHT, justifyContent: 'center' }}>
+              <LineChart
+                data={{
+                  labels,
+                  datasets: [{
+                    data,
+                    color: (opacity = 1) => `rgba(231, 76, 60, ${opacity})`,
+                    strokeWidth: 2,
+                  }],
                 }}
-              >
-                {data[index]} bpm
-              </Text>
-            )}
-          />
+                width={INNER_CHART_WIDTH}
+                height={INNER_CHART_HEIGHT}
+                yAxisSuffix=" bpm"
+                chartConfig={chartConfig}
+                bezier
+                style={{ borderRadius: 10, alignItems: 'center', marginLeft: -10 }}
+                withVerticalLines={false}
+                withHorizontalLines={true}
+                withInnerLines={false}
+                fromZero
+                horizontalLabelRotation={0}
+                verticalLabelRotation={-45}
+                xLabelsOffset={10}
+                withDots={true}
+                renderDotContent={({ x, y, index }) => {
+                  const offset = index % 2 === 0 ? -22 : 10;
+                  return (
+                    <Text
+                      key={index}
+                      style={{
+                        position: 'absolute',
+                        top: y + offset,
+                        left: x - 12,
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        color: '#e74c3c',
+                        backgroundColor: 'white',
+                        paddingHorizontal: 4,
+                        borderRadius: 4,
+                      }}
+                    >
+                      {data[index]} bpm
+                    </Text>
+                  );
+                }}
+              />
+            </View>
+          </View>
         ) : (
           <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
         )}
@@ -319,9 +356,9 @@ function formatLabel(iso: string) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 16,
   },
   title: {
     fontSize: 24,

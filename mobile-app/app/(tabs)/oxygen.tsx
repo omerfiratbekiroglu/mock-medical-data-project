@@ -13,27 +13,34 @@ import PatientDrawerPanel from '../../components/PatientDrawerPanel';
 import PageWithNavbar from '../../components/PageWithNavbar';
 
 
+const chartWidth = Dimensions.get('window').width - 40;
+const chartHeight = 350;
+
+const CARD_PADDING_V = 20;   // üst-alt boşluk
+const CARD_PADDING_H = 16;   // sağ-sol boşluk
+const CARD_WIDTH = chartWidth; 
+const INNER_CHART_HEIGHT = chartHeight;
+const INNER_CHART_WIDTH = CARD_WIDTH - CARD_PADDING_H;
+
 const chartConfig = {
   backgroundColor: '#fff',
   backgroundGradientFrom: '#fff',
   backgroundGradientTo: '#fff',
   decimalPlaces: 1,
-  color: (opacity = 1) => `rgba(41, 128, 185,${opacity})`,
-  labelColor: (opacity = 1) => `rgba(42,59,76,${opacity})`,
-  style: {
-    borderRadius: 10,
-  },
+  color: (opacity = 1) => `rgba(41, 128, 185, ${opacity})`,
+  labelColor: (opacity = 1) => `rgba(42, 59, 76, ${opacity})`,
   propsForDots: {
     r: '4',
     strokeWidth: '2',
     stroke: '#2980b9',
   },
   fillShadowGradient: '#2980b9',
-  fillShadowGradientOpacity: 0.1,
+  fillShadowGradientOpacity: 0.2,
   propsForLabels: {
     fontSize: 10,
-    rotation: 45,
+    dx: -10,
   },
+  style: { borderRadius: 10 },
 };
 
  
@@ -145,7 +152,7 @@ export default function OxygenLevelScreen() {
     return () => { isMounted = false; };
   }, []);
 
-  const renderChart = (id: 'oxy' | 'other', color: string, dataset: number[]) => {
+  const renderChart = (id: 'oxy' | 'other', color: string, dataset: number[], suffix: string) => {
     const isExpanded = expandedChart === id;
     const toggleExpand = () => {
       setExpandedChart(prev => (prev === id ? null : id));
@@ -153,49 +160,78 @@ export default function OxygenLevelScreen() {
 
     const chartComponent = (
       <TouchableOpacity onPress={toggleExpand} activeOpacity={0.95}>
-        <LineChart
-          data={{
-            labels,
-            datasets: [{ data: dataset, color: () => color }],
+        <View
+          style={{
+            width: CARD_WIDTH,
+            backgroundColor: '#fff',
+            borderRadius: 12,
+            paddingVertical: CARD_PADDING_V,
+            paddingHorizontal: CARD_PADDING_H,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 4,
+            marginVertical: 10,
           }}
-          width={Dimensions.get('window').width - 20}
-          height={isExpanded ? 360 : 220}
-          yAxisSuffix="%"
-          yLabelsOffset={10}
-          chartConfig={{
-            ...chartConfig,
-            propsForDots: {
-              r: '4',
-              strokeWidth: '2',
-              stroke: color,
-            },
-            fillShadowGradient: color,
-          }}
-          bezier
-          style={styles.chart}
-          withVerticalLines={false}
-          withHorizontalLines={true}
-          withInnerLines={false}
-          withDots={true}
-          withShadow={true}
-          fromZero={true}
-          segments={5}
-          renderDotContent={({ x, y, index }) => (
-            <Text
-              key={index}
-              style={{
-                position: 'absolute',
-                top: y - 12,
-                left: x - 12,
-                fontSize: 10,
-                color: '#2a3b4c',
-                fontWeight: 'bold',
-              }}
-            >
-              {dataset[index]}%
-            </Text>
-          )}
-        />
+        >
+        <View style={{ height: isExpanded ? 450 : INNER_CHART_HEIGHT, justifyContent: 'center' }}>
+          <LineChart
+            data={{
+              labels,
+              datasets: [{
+                data: dataset,
+                color: (opacity = 1) => color.replace('1)', `${opacity})`),
+                strokeWidth: 2,
+              }],
+            }}
+            width={INNER_CHART_WIDTH}
+            height={isExpanded ? 450 : INNER_CHART_HEIGHT}
+            yAxisSuffix={suffix}
+            chartConfig={{
+              ...chartConfig,
+              color: (opacity = 1) => color.replace('1)', `${opacity})`),
+              propsForDots: {
+                r: '4',
+                strokeWidth: '2',
+                stroke: color.replace('rgba(', '').replace(', 1)', '').split(', ').slice(0, 3).join(', '),
+              },
+              fillShadowGradient: color.replace('rgba(', '').replace(', 1)', '').split(', ').slice(0, 3).join(', '),
+            }}
+            bezier
+            style={{ borderRadius: 10, alignItems: 'center', marginLeft: -10 }}
+            withVerticalLines={false}
+            withHorizontalLines={true}
+            withInnerLines={false}
+            fromZero
+            horizontalLabelRotation={0}
+            verticalLabelRotation={-45}
+            xLabelsOffset={10}
+            withDots={true}
+            renderDotContent={({ x, y, index }) => {
+              const offset = index % 2 === 0 ? -22 : 10;
+              return (
+                <Text
+                  key={index}
+                  style={{
+                    position: 'absolute',
+                    top: y + offset,
+                    left: x - 12,
+                    fontSize: 12,
+                    fontWeight: 'bold',
+                    color: color.replace('rgba(', '').replace(', 1)', '').split(', ').slice(0, 3).join(', '),
+                    backgroundColor: 'white',
+                    paddingHorizontal: 4,
+                    borderRadius: 4,
+                  }}
+                >
+                  {dataset[index]}{suffix}
+                </Text>
+              );
+            }}
+          />
+        </View>
+        </View>
       </TouchableOpacity>
     );
 
@@ -222,8 +258,8 @@ export default function OxygenLevelScreen() {
         <Text style={styles.title}>Oxygen Level (Live)</Text>
         {data.length > 0 ? (
           <>
-            {renderChart('oxy', '#2980b9', data)}
-            {renderChart('other', '#e74c3c', data.map(v => v - 5))}
+            {renderChart('oxy', 'rgba(41, 128, 185, 1)', data, '%')}
+            {renderChart('other', 'rgba(231, 76, 60, 1)', data.map(v => v - 5), '%')}
           </>
         ) : (
           <Text style={styles.loadingText}>Grafik için geçerli veri bekleniyor...</Text>
