@@ -238,7 +238,7 @@ export default function PatientUpdateScreen() {
               <Text style={styles.noFeedbackText}>No notes or feedback yet.</Text>
             ) : (
               doctorFeedback.map((item) => (
-                <View key={`${item.item_type}-${item.note_id}`} style={styles.feedbackItem}>
+                <View key={item.feedback_id || `${item.item_type}-${item.note_id}`} style={styles.feedbackItem}>
                   <View style={styles.feedbackNoteInfo}>
                     <Text style={styles.feedbackNoteTitle}>{item.note_title}</Text>
                     <Text style={styles.feedbackPatient}>Patient: {item.patient_name}</Text>
