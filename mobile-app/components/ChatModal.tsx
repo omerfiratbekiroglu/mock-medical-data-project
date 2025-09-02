@@ -51,10 +51,10 @@ export default function ChatModal({ visible, onClose, noteId, noteTitle, patient
   }, [visible]);
 
   useEffect(() => {
-    if (visible && noteId) {
+    if (visible && noteId && currentUserId && currentUserRole) {
       loadMessages();
     }
-  }, [visible, noteId]);
+  }, [visible, noteId, currentUserId, currentUserRole]);
 
   useEffect(() => {
     // Scroll to bottom when new messages arrive
