@@ -1,0 +1,128 @@
+# Mock Medical Data Project - Detaylı Proje Özeti
+
+---
+
+## Genel Amaç
+Bu proje, medikal (vital) verilerin (nabız, oksijen seviyesi, sıcaklık) gerçek zamanlı olarak üretilmesi, şifrelenmesi, saklanması, API üzerinden sunulması ve hem web hem de mobil arayüzlerle görselleştirilmesini amaçlar.
+
+---
+
+## Ana Bileşenler
+
+### 1. Backend (API)
+- **Teknoloji:** Python (FastAPI), PostgreSQL
+- **Dosyalar:** api.py, crypto_utils.py, data_generator.py, schema.sql, requirements.txt
+- **Özellikler:**
+  - Vital verileri (nabız, oksijen, sıcaklık) alır ve şifreler.
+  - Şifreli verileri veritabanına kaydeder.
+  - /write, /read_encrypted, /decrypt, /fetch_by_seq_range gibi endpointler ile veri okuma/yazma ve şifre çözme işlemleri sağlar.
+  - CORS desteği ile frontend ve mobil uygulamaya API erişimi sunar.
+  - Veritabanı bağlantısı ve yönetimi için asenkron yapı kullanılır.
+
+### 2. Web Arayüzü
+- **Dosya:** frontend.html
+- **Teknoloji:** HTML, JavaScript, Chart.js, CryptoJS
+- **Özellikler:**
+  - Son 10 vital veriyi tablo ve grafiklerle gösterir.
+  - API'den şifreli verileri çeker, AES ile çözer ve görselleştirir.
+  - Her 2 saniyede bir yeni veri için polling yapar.
+  - Nabız, oksijen ve sıcaklık için ayrı grafikler ve tablo sunar.
+
+### 3. Mobil Uygulama
+- **Klasör:** mobile-app/
+- **Teknoloji:** React Native (Expo), TypeScript
+- **Dosyalar:** app/, components/, hooks/, constants/, config.ts
+- **Özellikler:**
+  - Vital verileri ve logları mobilde gösterir.
+  - Her bir vital için ayrı sekmeler (nabız, oksijen, sıcaklık).
+  - API'den şifreli verileri çekip çözer ve grafiklerle sunar.
+  - Kayıp paketleri ve geç gelen verileri tespit edip işaretler.
+  - Parallax scroll, temalı arayüz, responsive tasarım.
+  - config.ts ile API adresi yönetimi.
+
+### 4. Data Generator
+- **Dosya:** data_generator.py
+- **Özellikler:**
+  - Rastgele vital veriler üretir ve API'ye gönderir.
+  - Docker ile bağımsız çalışabilir.
+
+### 5. Docker Desteği
+- **Dosyalar:** Dockerfile.api, Dockerfile.data_generator, docker-compose.yml
+- **Özellikler:**
+  - API ve data generator için ayrı containerlar.
+  - Kolay kurulum ve dağıtım.
+
+### 6. Testler
+- **Dosya:** test_api.py
+- **Özellikler:**
+  - API endpointlerinin doğruluğu test edilir.
+
+---
+
+## Akış Özeti
+
+1. **Veri Üretimi:** Data generator rastgele vital veriler üretir ve API'ye gönderir.
+2. **Şifreleme & Saklama:** API, gelen verileri AES ile şifreler ve veritabanına kaydeder.
+3. **Veri Sunumu:** Web ve mobil uygulama, API'den şifreli verileri çeker, AES ile çözer ve kullanıcıya sunar.
+4. **Görselleştirme:** Grafikler ve tablolar ile veriler anlık olarak gösterilir.
+5. **Kayıp/Geç Gelen Paketler:** Mobil uygulama, eksik veya geç gelen verileri tespit edip işaretler.
+
+---
+
+## Kullanım
+- **Web:** frontend.html dosyasını açarak canlı verileri görebilirsiniz.
+- **Mobil:** mobile-app klasöründe npm install ve npx expo start ile uygulamayı başlatabilirsiniz.
+- **API:** Docker ile veya doğrudan Python ile başlatılabilir.
+
+---
+
+## Kod Akışı ve Mantık
+
+### 1. Veri Üretimi ve API'ye Gönderimi
+- data_generator.py dosyası, rastgele vital veriler (nabız, oksijen, sıcaklık) üretir.
+- Üretilen veriler, API'ye (FastAPI) HTTP POST ile /write endpointine gönderilir.
+- API, gelen verileri AES ile şifreler (crypto_utils.py), veritabanına kaydeder.
+
+### 2. API Katmanı
+- api.py dosyasında FastAPI ile REST endpointler tanımlı:
+  - /write: Yeni vital veriyi alır, şifreler ve kaydeder.
+  - /read_encrypted: Şifreli verileri döner.
+  - /decrypt: Şifreli veriyi çözer.
+  - /fetch_by_seq_range: Belirli aralıktaki verileri döner.
+- Veritabanı bağlantısı asenkron olarak yönetilir.
+- CORS ile frontend ve mobil uygulamadan erişim sağlanır.
+
+### 3. Web Arayüzü (frontend.html)
+- API'den son 10 şifreli veriyi çeker (/read_encrypted?limit=10).
+- CryptoJS ile AES şifre çözme yapılır.
+- Çözülen veriler tabloya ve Chart.js ile grafiklere eklenir.
+- Her 2 saniyede bir yeni veri için polling yapılır.
+- Tabloda ve grafiklerde nabız, oksijen, sıcaklık anlık gösterilir.
+
+### 4. Mobil Uygulama (React Native / Expo)
+- mobile-app/app/ klasöründe her vital için ayrı sekme dosyaları var (heartrate.tsx, oxygen.tsx, temprature.tsx, logs.tsx, complete_logs.tsx).
+- Her sekme, API'den şifreli verileri çeker, AES ile çözer ve grafikle gösterir.
+- Kayıp veya geç gelen paketler tespit edilir ve işaretlenir.
+- config.ts ile API adresi yönetilir.
+- Parallax scroll, temalı arayüz ve responsive tasarım kullanılır.
+
+### 5. Docker ve Deployment
+- Dockerfile.api ve Dockerfile.data_generator ile API ve veri üretici container olarak çalıştırılır.
+- docker-compose.yml ile tüm servisler kolayca ayağa kaldırılır.
+
+### 6. Testler
+- test_api.py ile API endpointleri test edilir.
+
+---
+
+## Kod Akışı Örneği (Mobil Nabız Sekmesi)
+
+1. **Veri Çekme:** API'den şifreli nabız verileri çekilir.
+2. **Şifre Çözme:** Gelen veri AES ile çözülür.
+3. **Veri İşleme:** JSON parse edilir, zaman ve nabız değerleri ayrılır.
+4. **Görselleştirme:** Son 10 veri grafik ve tabloya eklenir.
+5. **Polling:** Her saniye yeni veri için API sorgulanır.
+
+---
+
+Daha fazla dosya veya fonksiyon bazında kod akışı istersen, örnek dosya/fonksiyon belirtmen yeterli!

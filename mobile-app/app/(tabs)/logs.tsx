@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import API_BASE_URL from '../../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import PageWithNavbar from '../../components/PageWithNavbar';
 
-const API_URL = `${API_BASE_URL}/read_encrypted?limit=10`;
+const API_URL = `${API_BASE_URL}/read_encrypted?limit=20`;
 
 function formatTime(isoString: string) {
   const d = new Date(isoString);
@@ -12,101 +14,143 @@ function formatTime(isoString: string) {
 export default function LogsScreen() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [patientId, setPatientId] = useState<string | null>(null);
   const lastTimeRef = useRef<string | null>(null);
 
   // Initial load
   useEffect(() => {
     let isMounted = true;
-    const AES_KEY = "thisisaverysecretkey1234567890ab"; // Not needed anymore
-    async function loadInitial() {
+
+    const loadInitial = async () => {
       setLoading(true);
+      const selectedPatientId = await AsyncStorage.getItem('selectedPatientId');
+      setPatientId(selectedPatientId);
+      if (!selectedPatientId) return;
+
       try {
         const res = await fetch(API_URL);
         const data = await res.json();
-        console.log('API data:', data);
         const decryptedRows = [];
+
         for (const row of data.reverse()) {
           try {
-            // Call /decrypt endpoint
             const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ encrypted_data: row.encrypted_data })
             });
+
             const decryptData = await decryptRes.json();
             if (decryptData.decrypted_data) {
-              const byteLength = new TextEncoder().encode(decryptData.decrypted_data).length;
-              console.log(`Decrypted data length: ${byteLength} bytes`);
               const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
               const vitals = JSON.parse(cleaned);
               vitals.time = row.time;
-              decryptedRows.push(vitals);
-            } else {
-              console.log('Decryption failed:', decryptData);
+
+              if (vitals.patient_id === selectedPatientId) {
+                decryptedRows.push(vitals);
+              }
             }
           } catch (err) {
             console.log('Decryption or parsing failed:', err);
           }
         }
+
         if (isMounted) {
           setLogs(decryptedRows);
           if (decryptedRows.length > 0) lastTimeRef.current = decryptedRows[0].time;
         }
       } catch (e) {
-        // fallback to mock data if error
         if (isMounted) setLogs([]);
       }
+
       setLoading(false);
-    }
+    };
+
     loadInitial();
+
     return () => { isMounted = false; };
   }, []);
 
+  // Polling
   useEffect(() => {
     let isMounted = true;
+
     const poll = async () => {
+      const selectedPatientId = await AsyncStorage.getItem('selectedPatientId');
+      if (!selectedPatientId) return;
+
       try {
-        const res = await fetch(`${API_BASE_URL}/read_encrypted?limit=1`);
+        // Daha fazla veri al ki tüm hasta verilerini yakalayabilelim
+        const res = await fetch(`${API_BASE_URL}/read_encrypted?limit=10`);
         const data = await res.json();
+        
         if (Array.isArray(data) && data.length > 0) {
-          const row = data[0];
-          if (row.time !== lastTimeRef.current) {
-            lastTimeRef.current = row.time;
-            // Call /decrypt endpoint
-            const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ encrypted_data: row.encrypted_data })
-            });
-            const decryptData = await decryptRes.json();
-            if (decryptData.decrypted_data) {
-              const byteLength = new TextEncoder().encode(decryptData.decrypted_data).length;
-              console.log(`Decrypted data length: ${byteLength} bytes`);
-              const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
-              const vitals = JSON.parse(cleaned);
-              vitals.time = row.time;
-              if (isMounted) {
-                setLogs(prev => [vitals, ...prev].slice(0, 10));
+          const newVitals = [];
+          
+          // Tüm verileri kontrol et
+          for (const row of data) {
+            // Zaten işlediğimiz bir zaman değilse
+            if (row.time > (lastTimeRef.current || '')) {
+              try {
+                const decryptRes = await fetch(`${API_BASE_URL}/decrypt`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ encrypted_data: row.encrypted_data })
+                });
+
+                const decryptData = await decryptRes.json();
+                if (decryptData.decrypted_data) {
+                  const cleaned = decryptData.decrypted_data.replace(/X+$/, '');
+                  const vitals = JSON.parse(cleaned);
+                  vitals.time = row.time;
+                  
+                  // Bu hasta için olan veriyi ekle
+                  if (vitals.patient_id === selectedPatientId) {
+                    newVitals.push(vitals);
+                  }
+                }
+              } catch (err) {
+                console.log('Decryption failed:', err);
               }
-            } else {
-              console.log('Decryption failed:', decryptData);
             }
+          }
+          
+          // Yeni veriler varsa ekle
+          if (newVitals.length > 0 && isMounted) {
+            // Zamana göre sırala (en yeni önce)
+            newVitals.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+            
+            setLogs(prev => {
+              const combined = [...newVitals, ...prev];
+              // Duplikatları kaldır ve en fazla 20 kayıt tut
+              const uniqueByTime = combined.filter((item, index, self) => 
+                index === self.findIndex(t => t.time === item.time)
+              );
+              return uniqueByTime.slice(0, 20);
+            });
+            
+            // Son zamanı güncelle
+            lastTimeRef.current = data[0].time;
           }
         }
       } catch (e) {
-        // ignore polling errors
+        console.log('Polling error:', e);
       }
-      if (isMounted) setTimeout(poll, 500);
+
+      if (isMounted) setTimeout(poll, 1000); // 1 saniye olarak artırdım
     };
+
     poll();
+
     return () => { isMounted = false; };
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Live Vitals Logs</Text>
+    <PageWithNavbar>
+      <View style={styles.container}>
+      <Text style={styles.title}>Vitals for {patientId || '...'}</Text>
       {loading ? (
-        <ActivityIndicator size="large" color="#2a3b4c" style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color="#2a3b4c" style={styles.loading} />
       ) : (
         <ScrollView horizontal>
           <View>
@@ -117,13 +161,13 @@ export default function LogsScreen() {
               <Text style={[styles.cell, styles.headerCell]}>Oxygen Level</Text>
               <Text style={[styles.cell, styles.headerCell]}>Temperature</Text>
             </View>
-            <ScrollView style={{ maxHeight: 320 }}>
+            <ScrollView style={styles.scrollContainer}>
               {logs.map((row, idx) => (
                 <View
                   key={idx}
                   style={[
                     styles.dataRow,
-                    idx === 0 ? styles.newRow : null, // highlight the latest row
+                    idx === 0 ? styles.newRow : null,
                   ]}
                 >
                   <Text style={styles.cell}>{formatTime(row.time)}</Text>
@@ -137,49 +181,80 @@ export default function LogsScreen() {
           </View>
         </ScrollView>
       )}
-    </View>
+      </View>
+    </PageWithNavbar>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f4f6fa',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    padding: 16,
+    padding: 20,
+    backgroundColor: '#F8FAFC',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2a3b4c',
-    marginBottom: 16,
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 24,
+    letterSpacing: -0.5,
   },
   headerRow: {
     flexDirection: 'row',
-    backgroundColor: '#e3eaf2',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
+    backgroundColor: '#10B981',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerCell: {
-    fontWeight: 'bold',
-    color: '#2a3b4c',
-    backgroundColor: '#e3eaf2',
+    fontWeight: '600',
+    color: '#FFFFFF',
+    backgroundColor: 'transparent',
+    fontSize: 14,
   },
   dataRow: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   cell: {
-    minWidth: 90,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    minWidth: 95,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     textAlign: 'center',
-    color: '#2a3b4c',
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '500',
   },
   newRow: {
-    backgroundColor: '#d1ffd6',
+    backgroundColor: '#ECFDF5',
+    borderLeftWidth: 4,
+    borderLeftColor: '#10B981',
+  },
+  loading: {
+    marginTop: 60,
+  },
+  scrollContainer: {
+    maxHeight: 400,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
 });
