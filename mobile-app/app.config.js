@@ -1,3 +1,6 @@
+import 'dotenv/config';
+
+export default
 {
   "expo": {
     "name": "mobile-app",
@@ -19,7 +22,7 @@
       "edgeToEdgeEnabled": true,
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyDUxKTpmbb1IB5HjdWAjM3ajRxLV0VMCxc"
+          "apiKey": process.env.GOOGLE_MAPS_API_KEY,
         },
       "package": "com.omrbekiroglu.mobileapp"
 
