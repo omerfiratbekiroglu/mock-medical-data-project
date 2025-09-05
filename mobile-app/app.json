@@ -16,7 +16,13 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDUxKTpmbb1IB5HjdWAjM3ajRxLV0VMCxc"
+        },
+      "package": "com.omrbekiroglu.mobileapp"
+
     },
     "web": {
       "bundler": "metro",
@@ -39,4 +45,5 @@
       "typedRoutes": true
     }
   }
+}
 }
