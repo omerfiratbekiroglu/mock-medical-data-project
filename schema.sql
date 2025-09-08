@@ -43,26 +43,6 @@ ON CONFLICT (email) DO UPDATE SET
     assigned_patients = EXCLUDED.assigned_patients;
 
 
-  CREATE TABLE IF NOT EXISTS caregiver_notes (
-      id SERIAL PRIMARY KEY,
-      patient_id INTEGER NOT NULL,
-      caregiver_id INTEGER NOT NULL,
-      title VARCHAR(255) NOT NULL,
-      content TEXT NOT NULL,
-      care_level INTEGER NOT NULL CHECK (care_level >= 1 AND care_level <= 5),
-      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
-      updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
-
-      FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (caregiver_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  -- Index for performance
-  CREATE INDEX IF NOT EXISTS idx_caregiver_notes_patient_id ON caregiver_notes(patient_id);
-  CREATE INDEX IF NOT EXISTS idx_caregiver_notes_caregiver_id ON caregiver_notes(caregiver_id);
-  CREATE INDEX IF NOT EXISTS idx_caregiver_notes_care_level ON caregiver_notes(care_level);
-  CREATE INDEX IF NOT EXISTS idx_caregiver_notes_created_at ON caregiver_notes(created_at DESC);
-
 -- Critical alerts table for heart rate notifications
 CREATE TABLE IF NOT EXISTS critical_alerts (
     id SERIAL PRIMARY KEY,
@@ -72,7 +52,7 @@ CREATE TABLE IF NOT EXISTS critical_alerts (
     heart_rate INTEGER NOT NULL,
     threshold_value INTEGER NOT NULL,
     message TEXT NOT NULL,
-    is_read BOOLEAN DEFAULT false,
+    is_read BOOLEAN DEFAULT false, 
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
 
     FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -85,7 +65,64 @@ CREATE INDEX IF NOT EXISTS idx_critical_alerts_patient_id ON critical_alerts(pat
 CREATE INDEX IF NOT EXISTS idx_critical_alerts_is_read ON critical_alerts(is_read);
 CREATE INDEX IF NOT EXISTS idx_critical_alerts_created_at ON critical_alerts(created_at DESC);
 
--- Doctor feedback table for caregiver notes
+
+
+
+CREATE TABLE IF NOT EXISTS caregiver_notes (
+    id SERIAL PRIMARY KEY,
+    patient_id INTEGER NOT NULL,
+    caregiver_id INTEGER NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    care_level INTEGER NOT NULL CHECK (care_level >= 1 AND care_level <= 5),
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
+    FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (caregiver_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Indexler
+CREATE INDEX IF NOT EXISTS idx_caregiver_notes_patient_id   ON caregiver_notes(patient_id);
+CREATE INDEX IF NOT EXISTS idx_caregiver_notes_caregiver_id ON caregiver_notes(caregiver_id);
+CREATE INDEX IF NOT EXISTS idx_caregiver_notes_care_level   ON caregiver_notes(care_level);
+CREATE INDEX IF NOT EXISTS idx_caregiver_notes_created_at   ON caregiver_notes(created_at DESC);
+
+
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id SERIAL PRIMARY KEY,
+    note_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    sender_role VARCHAR(20) NOT NULL CHECK (
+        sender_role IN ('doctor', 'caregiver')
+    ),
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
+    FOREIGN KEY (note_id) REFERENCES caregiver_notes(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Indexler
+CREATE INDEX IF NOT EXISTS idx_chat_messages_note_id    ON chat_messages(note_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_sender_id  ON chat_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_is_read    ON chat_messages(is_read);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at);
+
+
+
+CREATE SEQUENCE IF NOT EXISTS chat_messages_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    MINVALUE 1
+    MAXVALUE 2147483647
+    NO CYCLE
+    CACHE 1;
+
+ALTER SEQUENCE chat_messages_id_seq OWNED BY chat_messages.id;
+
+
 CREATE TABLE IF NOT EXISTS doctor_feedback (
     id SERIAL PRIMARY KEY,
     note_id INTEGER NOT NULL,
@@ -94,37 +131,63 @@ CREATE TABLE IF NOT EXISTS doctor_feedback (
     caregiver_id INTEGER NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
-
-    FOREIGN KEY (note_id) REFERENCES caregiver_notes(id) ON DELETE CASCADE,
-    FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (note_id)      REFERENCES caregiver_notes(id) ON DELETE CASCADE,
+    FOREIGN KEY (doctor_id)    REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (patient_id)   REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (caregiver_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Index for performance
-CREATE INDEX IF NOT EXISTS idx_doctor_feedback_note_id ON doctor_feedback(note_id);
+-- Indexler
+CREATE INDEX IF NOT EXISTS idx_doctor_feedback_note_id      ON doctor_feedback(note_id);
 CREATE INDEX IF NOT EXISTS idx_doctor_feedback_caregiver_id ON doctor_feedback(caregiver_id);
-CREATE INDEX IF NOT EXISTS idx_doctor_feedback_patient_id ON doctor_feedback(patient_id);
-CREATE INDEX IF NOT EXISTS idx_doctor_feedback_created_at ON doctor_feedback(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_doctor_feedback_patient_id   ON doctor_feedback(patient_id);
+CREATE INDEX IF NOT EXISTS idx_doctor_feedback_created_at   ON doctor_feedback(created_at DESC);
 
--- Chat messages table for note discussions between doctors and caregivers
-CREATE TABLE IF NOT EXISTS chat_messages (
-    id SERIAL PRIMARY KEY,
-    note_id INTEGER NOT NULL,
-    sender_id INTEGER NOT NULL,
-    sender_role VARCHAR(20) NOT NULL CHECK (sender_role IN ('doctor', 'caregiver')),
-    content TEXT NOT NULL,
-    is_read BOOLEAN DEFAULT false,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
+CREATE SEQUENCE IF NOT EXISTS doctor_feedback_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    MINVALUE 1
+    MAXVALUE 2147483647
+    NO CYCLE
+    CACHE 1;
 
-    FOREIGN KEY (note_id) REFERENCES caregiver_notes(id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Index for performance
-CREATE INDEX IF NOT EXISTS idx_chat_messages_note_id ON chat_messages(note_id);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_sender_id ON chat_messages(sender_id);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_is_read ON chat_messages(is_read);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at ASC);
+ALTER SEQUENCE doctor_feedback_id_seq OWNED BY doctor_feedback.id;
 
 
+-- Sequence
+CREATE SEQUENCE IF NOT EXISTS encrypted_vitals_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    MINVALUE 1
+    MAXVALUE 2147483647
+    NO CYCLE
+    CACHE 1;
+
+
+-- Sequence sahipliği
+ALTER SEQUENCE encrypted_vitals_id_seq OWNED BY encrypted_vitals.id;
+
+
+CREATE SEQUENCE IF NOT EXISTS users_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    MINVALUE 1
+    MAXVALUE 2147483647
+    NO CYCLE
+    CACHE 1;
+
+ALTER SEQUENCE users_id_seq OWNED BY users.id;
+
+CREATE SEQUENCE IF NOT EXISTS caregiver_notes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    MINVALUE 1
+    MAXVALUE 2147483647
+    NO CYCLE
+    CACHE 1;
+
+ALTER SEQUENCE caregiver_notes_id_seq OWNED BY caregiver_notes.id;
