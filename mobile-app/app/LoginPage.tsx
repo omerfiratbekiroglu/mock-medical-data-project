@@ -1,6 +1,7 @@
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import API_BASE_URL from '../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -8,6 +9,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     const testStoredData = async () => {
@@ -66,18 +68,30 @@ export default function LoginPage() {
         value={email}
         onChangeText={setEmail}
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+      <View style={styles.passwordContainer}>
+        <TextInput
+          style={styles.passwordInput}
+          placeholder="Password"
+          secureTextEntry={!showPassword}
+          value={password}
+          onChangeText={setPassword}
+        />
+        <TouchableOpacity 
+          style={styles.eyeIcon} 
+          onPress={() => setShowPassword(!showPassword)}
+        >
+          <Ionicons 
+            name={showPassword ? "eye-off" : "eye"} 
+            size={24} 
+            color="#6B7280" 
+          />
+        </TouchableOpacity>
+      </View>
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
         <Text style={styles.buttonText}>Login</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => router.push('/RegisterPage')}>
-        <Text style={styles.link}>Don't have an account? Register</Text>
+        <Text style={styles.link}>Don&apos;t have an account? Register</Text>
       </TouchableOpacity>
     </View>
   );
@@ -135,5 +149,29 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 16,
     fontWeight: '500'
+  },
+  passwordContainer: {
+    position: 'relative',
+    marginBottom: 20,
+  },
+  passwordInput: {
+    borderWidth: 1.5, 
+    borderColor: '#E5E7EB', 
+    padding: 16, 
+    paddingRight: 50,
+    borderRadius: 12,
+    fontSize: 16,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 4,
   },
 });

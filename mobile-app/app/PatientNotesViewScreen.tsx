@@ -6,7 +6,7 @@ import API_BASE_URL from '../config';
 import { Ionicons } from '@expo/vector-icons';
 import NavigationBar from '../components/NavigationBar';
 import PatientDrawerPanel from '../components/PatientDrawerPanel';
-import ChatModal from '../components/ChatModal';
+import DiscussionModal from '../components/DiscussionModal';
 
 interface PatientNote {
   note_id: number;
@@ -49,9 +49,9 @@ export default function PatientNotesViewScreen() {
   const [feedbackContent, setFeedbackContent] = useState('');
   const [feedbackList, setFeedbackList] = useState<{[key: number]: DoctorFeedback[]}>({});
   const [savingFeedback, setSavingFeedback] = useState(false);
-  const [chatModalVisible, setChatModalVisible] = useState(false);
-  const [selectedChatNoteId, setSelectedChatNoteId] = useState<number | null>(null);
-  const [selectedChatNoteTitle, setSelectedChatNoteTitle] = useState<string>('');
+  const [discussionModalVisible, setDiscussionModalVisible] = useState(false);
+  const [selectedDiscussionNoteId, setSelectedDiscussionNoteId] = useState<number | null>(null);
+  const [selectedDiscussionNoteTitle, setSelectedDiscussionNoteTitle] = useState<string>('');
 
   useEffect(() => {
     loadPatientNotes();
@@ -151,10 +151,10 @@ export default function PatientNotesViewScreen() {
     setFeedbackModalVisible(true);
   };
 
-  const openChatModal = (noteId: number, noteTitle: string) => {
-    setSelectedChatNoteId(noteId);
-    setSelectedChatNoteTitle(noteTitle);
-    setChatModalVisible(true);
+  const openDiscussionModal = (noteId: number, noteTitle: string) => {
+    setSelectedDiscussionNoteId(noteId);
+    setSelectedDiscussionNoteTitle(noteTitle);
+    setDiscussionModalVisible(true);
   };
 
   const saveFeedback = async () => {
@@ -259,40 +259,25 @@ export default function PatientNotesViewScreen() {
                   </Text>
                 </View>
 
-                {/* Feedback Section */}
-                <View style={styles.feedbackSection}>
-                  <View style={styles.actionButtonsContainer}>
-                    <TouchableOpacity 
-                      style={styles.feedbackButton}
-                      onPress={() => openFeedbackModal(note.note_id)}
-                    >
-                      <Ionicons name="chatbubble-outline" size={16} color="#2980b9" />
-                      <Text style={styles.feedbackButtonText}>Add Feedback</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                      style={styles.chatButton}
-                      onPress={() => openChatModal(note.note_id, note.title)}
-                    >
-                      <Ionicons name="chatbubbles" size={16} color="#27ae60" />
-                      <Text style={styles.chatButtonText}>Chat</Text>
-                    </TouchableOpacity>
-                  </View>
+                {/* Discussion Section */}
+                <View style={styles.discussionSection}>
+                  <TouchableOpacity 
+                    style={styles.discussionButton}
+                    onPress={() => openDiscussionModal(note.note_id, note.title)}
+                  >
+                    <Ionicons name="chatbubbles" size={18} color="#2980b9" />
+                    <Text style={styles.discussionButtonText}>Open Discussion</Text>
+                    <Ionicons name="chevron-forward" size={16} color="#7f8c8d" />
+                  </TouchableOpacity>
                   
                   {feedbackList[note.note_id] && feedbackList[note.note_id].length > 0 && (
-                    <View style={styles.feedbackList}>
-                      <Text style={styles.feedbackTitle}>Doctor Feedback:</Text>
-                      {feedbackList[note.note_id].map((feedback) => (
-                        <View key={feedback.id} style={styles.feedbackItem}>
-                          <View style={styles.feedbackHeader}>
-                            <Text style={styles.feedbackDoctor}>{feedback.doctor_name}</Text>
-                            <Text style={styles.feedbackDate}>
-                              {new Date(feedback.created_at).toLocaleDateString('tr-TR')}
-                            </Text>
-                          </View>
-                          <Text style={styles.feedbackContent}>{feedback.content}</Text>
-                        </View>
-                      ))}
+                    <View style={styles.discussionPreview}>
+                      <Text style={styles.discussionPreviewTitle}>
+                        {feedbackList[note.note_id].length} discussion message{feedbackList[note.note_id].length > 1 ? 's' : ''}
+                      </Text>
+                      <Text style={styles.discussionPreviewText}>
+                        Latest: {feedbackList[note.note_id][feedbackList[note.note_id].length - 1].content.substring(0, 80)}...
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -369,12 +354,12 @@ export default function PatientNotesViewScreen() {
         </View>
       </Modal>
 
-      {/* Chat Modal */}
-      <ChatModal
-        visible={chatModalVisible}
-        onClose={() => setChatModalVisible(false)}
-        noteId={selectedChatNoteId || 0}
-        noteTitle={selectedChatNoteTitle}
+      {/* Discussion Modal */}
+      <DiscussionModal
+        visible={discussionModalVisible}
+        onClose={() => setDiscussionModalVisible(false)}
+        noteId={selectedDiscussionNoteId || 0}
+        noteTitle={selectedDiscussionNoteTitle}
         patientName={patientInfo?.patient_name || patientName as string}
       />
     </View>
@@ -531,90 +516,50 @@ const styles = StyleSheet.create({
     color: '#7f8c8d',
     textAlign: 'center',
   },
-  // Feedback styles
-  feedbackSection: {
+  // Discussion styles
+  discussionSection: {
     marginTop: 15,
     paddingTop: 15,
     borderTopWidth: 1,
     borderTopColor: '#ecf0f1',
   },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 15,
-  },
-  feedbackButton: {
+  discussionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    padding: 10,
-    borderRadius: 8,
+    backgroundColor: '#f8fafb',
+    padding: 15,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2980b9',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  feedbackButtonText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#2980b9',
-    fontWeight: '600',
-  },
-  chatButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#27ae60',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  chatButtonText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#27ae60',
-    fontWeight: '600',
-  },
-  feedbackList: {
-    marginTop: 15,
-  },
-  feedbackTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#2a3b4c',
+    borderColor: '#e3f2fd',
+    justifyContent: 'space-between',
     marginBottom: 10,
   },
-  feedbackItem: {
+  discussionButtonText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    color: '#2980b9',
+    fontWeight: '600',
+  },
+  discussionPreview: {
     backgroundColor: '#f8f9fa',
     padding: 12,
-    marginBottom: 8,
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: '#2980b9',
+    borderLeftColor: '#95a5a6',
   },
-  feedbackHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  feedbackDoctor: {
+  discussionPreviewTitle: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#2980b9',
-  },
-  feedbackDate: {
-    fontSize: 10,
     color: '#7f8c8d',
+    marginBottom: 4,
   },
-  feedbackContent: {
+  discussionPreviewText: {
     fontSize: 13,
-    color: '#2a3b4c',
+    color: '#5a6c7d',
     lineHeight: 18,
   },
-  // Modal styles
+  // Feedback Modal styles
   modalContainer: {
     flex: 1,
     backgroundColor: '#f4f6fa',

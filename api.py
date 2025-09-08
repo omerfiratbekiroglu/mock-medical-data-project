@@ -1020,3 +1020,77 @@ async def get_unread_message_count(user_id: int, role: str):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/note_discussion/{note_id}")
+async def get_note_discussion(note_id: int, user_id: int, role: str):
+    """Note için tüm iletişimi (feedback + chat) kronolojik sırayla getir"""
+    if role not in ['doctor', 'caregiver']:
+        raise HTTPException(status_code=403, detail="Only doctors and caregivers can view discussions")
+    
+    try:
+        # Note'un varlığını ve yetki kontrolünü yap
+        note_query = """
+            SELECT patient_id, caregiver_id FROM caregiver_notes 
+            WHERE id = :note_id
+        """
+        note = await database.fetch_one(note_query, {"note_id": note_id})
+        
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        
+        # Yetki kontrolü
+        if role == 'caregiver' and note["caregiver_id"] != user_id:
+            raise HTTPException(status_code=403, detail="You can only view discussion on your own notes")
+        
+        # Doctor feedbackleri getir
+        feedback_query = """
+            SELECT 
+                df.id, df.content, df.created_at,
+                df.doctor_id as sender_id,
+                'doctor' as sender_role,
+                'feedback' as message_type,
+                CONCAT(u.first_name, ' ', u.last_name) as sender_name,
+                false as is_read
+            FROM doctor_feedback df
+            JOIN users u ON df.doctor_id = u.id
+            WHERE df.note_id = :note_id
+        """
+        
+        # Chat mesajlarını getir
+        chat_query = """
+            SELECT 
+                cm.id, cm.content, cm.created_at,
+                cm.sender_id, cm.sender_role,
+                'message' as message_type,
+                CONCAT(u.first_name, ' ', u.last_name) as sender_name,
+                cm.is_read
+            FROM chat_messages cm
+            JOIN users u ON cm.sender_id = u.id
+            WHERE cm.note_id = :note_id
+        """
+        
+        # Birleştir ve kronolojik sırala
+        combined_query = f"""
+            ({feedback_query})
+            UNION ALL
+            ({chat_query})
+            ORDER BY created_at ASC
+        """
+        
+        discussion = await database.fetch_all(combined_query, {"note_id": note_id})
+        
+        # Okunmamış chat mesajlarını okundu olarak işaretle
+        mark_read_query = """
+            UPDATE chat_messages 
+            SET is_read = true 
+            WHERE note_id = :note_id AND sender_id != :user_id AND is_read = false
+        """
+        await database.execute(mark_read_query, {"note_id": note_id, "user_id": user_id})
+        
+        return {
+            "success": True,
+            "discussion": [dict(msg) for msg in discussion]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

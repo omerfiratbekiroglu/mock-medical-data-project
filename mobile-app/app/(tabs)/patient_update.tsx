@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import API_BASE_URL from '../../config';
-import ChatModal from '../../components/ChatModal';
+import DiscussionModal from '../../components/DiscussionModal';
 import { Ionicons } from '@expo/vector-icons';
 
 
@@ -13,9 +13,9 @@ export default function PatientUpdateScreen() {
   const [saving, setSaving] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [doctorFeedback, setDoctorFeedback] = useState<any[]>([]);
-  const [chatModalVisible, setChatModalVisible] = useState(false);
-  const [selectedChatNoteId, setSelectedChatNoteId] = useState<number | null>(null);
-  const [selectedChatNoteTitle, setSelectedChatNoteTitle] = useState<string>('');
+  const [discussionModalVisible, setDiscussionModalVisible] = useState(false);
+  const [selectedDiscussionNoteId, setSelectedDiscussionNoteId] = useState<number | null>(null);
+  const [selectedDiscussionNoteTitle, setSelectedDiscussionNoteTitle] = useState<string>('');
   const [selectedPatientName, setSelectedPatientName] = useState<string>('');
   const [unreadMessageCount, setUnreadMessageCount] = useState<number>(0);
 
@@ -121,17 +121,18 @@ export default function PatientUpdateScreen() {
     }
   };
 
-  const openChatModal = (noteId: number, noteTitle: string, patientName: string) => {
-    setSelectedChatNoteId(noteId);
-    setSelectedChatNoteTitle(noteTitle);
+  const openDiscussionModal = (noteId: number, noteTitle: string, patientName: string) => {
+    setSelectedDiscussionNoteId(noteId);
+    setSelectedDiscussionNoteTitle(noteTitle);
     setSelectedPatientName(patientName);
-    setChatModalVisible(true);
+    setDiscussionModalVisible(true);
   };
 
-  const handleChatClose = () => {
-    setChatModalVisible(false);
-    // Reload unread count when chat closes
+  const handleDiscussionClose = () => {
+    setDiscussionModalVisible(false);
+    // Reload unread count and feedback when discussion closes
     loadUnreadMessageCount();
+    loadDoctorFeedback();
   };
 
   return (
@@ -276,13 +277,13 @@ export default function PatientUpdateScreen() {
                     </View>
                   )}
                   
-                  {/* Chat Button for each note */}
+                  {/* Discussion Button for each note */}
                   <TouchableOpacity 
-                    style={styles.chatButton}
-                    onPress={() => openChatModal(item.note_id, item.note_title, item.patient_name)}
+                    style={styles.discussionButton}
+                    onPress={() => openDiscussionModal(item.note_id, item.note_title, item.patient_name)}
                   >
-                    <Ionicons name="chatbubbles" size={16} color="#27ae60" />
-                    <Text style={styles.chatButtonText}>Open Chat</Text>
+                    <Ionicons name="chatbubbles" size={16} color="#2980b9" />
+                    <Text style={styles.discussionButtonText}>Open Discussion</Text>
                   </TouchableOpacity>
                 </View>
               ))
@@ -291,12 +292,12 @@ export default function PatientUpdateScreen() {
         </View>
       </Modal>
 
-      {/* Chat Modal */}
-      <ChatModal
-        visible={chatModalVisible}
-        onClose={handleChatClose}
-        noteId={selectedChatNoteId || 0}
-        noteTitle={selectedChatNoteTitle}
+      {/* Discussion Modal */}
+      <DiscussionModal
+        visible={discussionModalVisible}
+        onClose={handleDiscussionClose}
+        noteId={selectedDiscussionNoteId || 0}
+        noteTitle={selectedDiscussionNoteTitle}
         patientName={selectedPatientName}
       />
     </ScrollView>
@@ -578,21 +579,21 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 4,
   },
-  chatButton: {
+  discussionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    padding: 8,
-    borderRadius: 6,
+    backgroundColor: '#f8fafb',
+    padding: 10,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#27ae60',
-    marginTop: 10,
+    borderColor: '#2980b9',
+    marginTop: 12,
     alignSelf: 'flex-end',
   },
-  chatButtonText: {
-    marginLeft: 6,
-    fontSize: 12,
-    color: '#27ae60',
+  discussionButtonText: {
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#2980b9',
     fontWeight: '600',
   },
   notificationBadge: {
